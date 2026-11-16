@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function Nodes() {
   const user = (await getCurrentUser())!;
   const nodes = await db.node.findMany({ orderBy: { name: "asc" } });
-  const rows = await Promise.all(nodes.map(async (n) => ({ n, used: await db.server.aggregate({ where: { nodeId: n.id, status: { not: "ERROR" } }, _sum: { ramMb: true, diskMb: true, cpuPercent: true }, _count: true }), free: await db.allocation.count({ where: { nodeId: n.id, serverId: null } }) })));
+  const rows = await Promise.all(nodes.map(async (n) => ({ n, used: await db.server.aggregate({ where: { nodeId: n.id, status: { not: "ERROR" } }, _sum: { ramMb: true, diskMb: true, cpuPercent: true }, _count: true }), free: await db.allocation.count({ where: { nodeId: n.id, serverId: null, extraForServerId: null } }) })));
   return (<><PageTitle sub="Prawdziwe węzły Wings działają na osobnych maszynach Linux." action={user.role === "ADMIN" && !env.demoMode ? <ActionButton url="/api/admin/nodes/sync" label="Synchronizuj z Pterodactyl" className="btn-primary" /> : undefined}>Węzły i zasoby</PageTitle>
     {user.role === "ADMIN" && !env.demoMode && <NodeProvisionForm />}
     <div className="grid gap-4 lg:grid-cols-2">{rows.map(({ n, used, free }) => (

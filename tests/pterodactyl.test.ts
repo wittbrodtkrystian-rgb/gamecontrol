@@ -19,7 +19,7 @@ beforeAll(async () => {
       const send = (code: number, o: unknown) => { rs.writeHead(code, { "content-type": "application/json" }); rs.end(JSON.stringify(o)); };
       if (url.startsWith("/api/application/users?filter")) return send(200, { data: users.map((a) => ({ attributes: a })) });
       if (url === "/api/application/users" && rq.method === "POST") { const a = { id: 7, email: body.email }; users.push(a); return send(201, { attributes: a }); }
-      if (url.startsWith("/api/application/nests/1/eggs/5")) return send(200, { attributes: { docker_image: "img", startup: "java -jar", relationships: { variables: { data: [{ attributes: { env_variable: "SERVER_JARFILE", default_value: "server.jar", user_editable: false } }, { attributes: { env_variable: "STEAM_GSLT", name: "GSLT", default_value: "", user_editable: true, rules: gsltRequired ? "required|string|alpha_num|size:32" : "nullable|string" } }, { attributes: { env_variable: "RCON_PASSWORD", default_value: "", user_editable: true, rules: "required|alpha_dash|between:1,30" } }] } } } });
+      if (url.startsWith("/api/application/nests/1/eggs/5")) return send(200, { attributes: { docker_image: "img", startup: "java -jar", relationships: { variables: { data: [{ attributes: { env_variable: "SERVER_JARFILE", default_value: "server.jar", user_editable: false } }, { attributes: { env_variable: "STEAM_GSLT", name: "GSLT", default_value: "", user_editable: true, rules: gsltRequired ? "required|string|alpha_num|size:32" : "nullable|string" } }, { attributes: { env_variable: "RCON_PASSWORD", default_value: "", user_editable: true, rules: "required|alpha_dash|between:1,30" } }, { attributes: { env_variable: "TXHOST_TXA_PORT", default_value: "40120", user_editable: false, rules: "required|string" } }] } } } });
       if (url.startsWith("/api/application/servers/external/")) { const s = servers[decodeURIComponent(url.split("/").pop()!)]; return s ? send(200, { attributes: s }) : send(404, { errors: [] }); }
       if (url === "/api/application/servers" && rq.method === "POST") { const s = { id: 42, uuid: "abcdef12-0000-0000-0000-000000000000", external_id: body.external_id }; servers[body.external_id] = s; return send(201, { attributes: s }); }
       if (url.startsWith("/api/application/nodes?")) return send(200, { data: [{ attributes: { id: 3, name: "wings1", fqdn: "w.local", memory: 8192, memory_overallocate: 0, disk: 50000, disk_overallocate: 0, maintenance_mode: false } }] });
@@ -78,6 +78,18 @@ describe("adapter Pterodactyl (mock API)", () => {
     const input = { name: "x", ownerEmail: "a@b.pl", ownerName: "A B", gameSlug: "cs2", ramMb: 1, cpuPercent: 1, diskMb: 1, node: { id: "n", pterodactylNodeId: 3 }, allocation: { ip: "1", port: 1, externalId: 100 }, nestId: 1, eggId: 5, dockerImage: null, idempotencyKey: "item-gslt" };
     await expect(new PterodactylAdapter().createServer(input)).rejects.toMatchObject({ retryable: false, message: expect.stringContaining("STEAM_GSLT") });
     expect(calls.some((c) => c.method === "POST" && c.url === "/api/application/servers")).toBe(false);
+  });
+  it("txAdmin: dodatkowa alokacja trafia do additional, limit alokacji rośnie, a port txAdmin ustawia platforma (nie klient)", async () => {
+    const a = new PterodactylAdapter();
+    await a.createServer({ name: "x", ownerEmail: "a@b.pl", ownerName: "A B", gameSlug: "fivem", ramMb: 1, cpuPercent: 1, diskMb: 1, node: { id: "n", pterodactylNodeId: 3 }, allocation: { ip: "1", port: 30120, externalId: 100 }, nestId: 1, eggId: 5, dockerImage: null, idempotencyKey: "item-tx",
+      extraAllocations: [{ ip: "1", port: 40125, externalId: 101 }], systemVars: { TXHOST_TXA_PORT: "40125" }, envVars: { TXHOST_TXA_PORT: "666" } });
+    const post = calls.find((c) => c.method === "POST" && c.url === "/api/application/servers")!;
+    expect(post.body.allocation).toEqual({ default: 100, additional: [101] });
+    expect(post.body.feature_limits.allocations).toBe(2);
+    expect(post.body.environment.TXHOST_TXA_PORT).toBe("40125");
+  });
+  it("niezsynchronizowana dodatkowa alokacja = błąd nieponawialny", async () => {
+    await expect(new PterodactylAdapter().createServer({ name: "x", ownerEmail: "a@b.pl", ownerName: "A B", gameSlug: "fivem", ramMb: 1, cpuPercent: 1, diskMb: 1, node: { id: "n", pterodactylNodeId: 3 }, allocation: { ip: "1", port: 30120, externalId: 100 }, nestId: 1, eggId: 5, dockerImage: null, idempotencyKey: "item-tx2", extraAllocations: [{ ip: "1", port: 40125, externalId: null }] })).rejects.toMatchObject({ retryable: false });
   });
   it("EULA Minecrafta: przy starcie zapisuje eula.txt tylko, gdy klient ją zaakceptował", async () => {
     const a = new PterodactylAdapter(); const s = { externalUuid: "abcdef12-0000" };

@@ -227,10 +227,14 @@ model Allocation {
   ip       String
   port     Int
   serverId String? @unique
-  server   Server? @relation(fields: [serverId], references: [id])
+  server   Server? @relation("PrimaryAlloc", fields: [serverId], references: [id])
+  // Dodatkowa alokacja serwera (np. port txAdmin dla FiveM). Nie liczy się jako wolna dla innych serwerów.
+  extraForServerId String?
+  extraServer      Server? @relation("ExtraAlloc", fields: [extraForServerId], references: [id])
   pterodactylId Int?
   @@unique([nodeId, ip, port])
   @@index([nodeId, serverId])
+  @@index([extraForServerId])
 }
 
 model Server {
@@ -256,7 +260,8 @@ model Server {
   isDemo        Boolean      @default(false)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
-  allocation    Allocation?
+  allocation    Allocation?  @relation("PrimaryAlloc")
+  extraAllocations Allocation[] @relation("ExtraAlloc")
   metrics       ServerMetric[]
   backups       Backup[]
   @@index([userId])

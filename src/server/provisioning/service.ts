@@ -8,6 +8,8 @@ const BACKOFF_MIN = [1, 5, 15, 60, 180];
 
 /** Domyślne porty gier: Minecraft 25565, CS2 27015, Rust 28015 (zakresy, z których wybieramy wolną alokację w pierwszej kolejności). */
 const PREFERRED_PORTS: [string, [number, number]][] = [["minecraft", [25565, 25599]], ["cs2", [27015, 27099]], ["rust", [28015, 28099]], ["fivem", [30120, 30199]]];
+/** Zakres portów dla panelu txAdmin (FiveM); to osobna alokacja serwera. */
+export const TXADMIN_PORTS: [number, number] = [40120, 40199];
 export const preferredPorts = (slug: string) => PREFERRED_PORTS.find(([k]) => slug.toLowerCase().includes(k))?.[1] ?? null;
 
 /** Wybiera węzeł z wolnym RAM/dyskiem/CPU i wolną alokacją; zwraca null, gdy brak zasobów. */
@@ -18,7 +20,7 @@ export async function pickNode(need: { ramMb: number; diskMb: number; cpuPercent
     const used = await db.server.aggregate({ where: { nodeId: n.id, status: { not: "ERROR" } }, _sum: { ramMb: true, diskMb: true, cpuPercent: true } });
     const freeRam = n.ramTotalMb - (used._sum.ramMb ?? 0);
     if (freeRam < need.ramMb || n.diskTotalMb - (used._sum.diskMb ?? 0) < need.diskMb || n.cpuTotal - (used._sum.cpuPercent ?? 0) < need.cpuPercent) continue;
-    if (!(await db.allocation.count({ where: { nodeId: n.id, serverId: null } }))) continue;
+    if (!(await db.allocation.count({ where: { nodeId: n.id, serverId: null, extraForServerId: null } }))) continue;
     if (!best || freeRam > best.free) best = { id: n.id, free: freeRam };
   }
   return best?.id ?? null;
@@ -33,6 +35,7 @@ export async function processJob(jobId: string): Promise<string> {
   if (claimed.count === 0) return "skipped";
   const job = await db.provisioningJob.findUniqueOrThrow({ where: { id: jobId }, include: { orderItem: { include: { plan: { include: { game: true } }, order: { include: { user: true } }, server: true } } } });
   const item = job.orderItem, order = item.order, plan = item.plan, adapter = getAdapter();
+  const needsTxAdmin = (plan.game.features as { txAdmin?: boolean } | null)?.txAdmin === true;
   try {
     // Idempotencja: serwer już w pełni utworzony
     if (item.server?.externalId && item.server.status !== "PENDING") {
@@ -50,9 +53,13 @@ export async function processJob(jobId: string): Promise<string> {
     const server = item.server ?? await db.$transaction(async (tx) => {
       // Preferowany zakres portów gry (np. CS2 = 27015+); gdy zajęty, bierzemy dowolną wolną alokację węzła.
       const range = preferredPorts(plan.game.slug);
-      const alloc = (range && await tx.allocation.findFirst({ where: { nodeId, serverId: null, port: { gte: range[0], lte: range[1] } }, orderBy: { port: "asc" } }))
-        || await tx.allocation.findFirst({ where: { nodeId, serverId: null }, orderBy: { port: "asc" } });
+      const free = { nodeId, serverId: null, extraForServerId: null };
+      const alloc = (range && await tx.allocation.findFirst({ where: { ...free, port: { gte: range[0], lte: range[1] } }, orderBy: { port: "asc" } }))
+        || await tx.allocation.findFirst({ where: free, orderBy: { port: "asc" } });
       if (!alloc) throw new ProvisioningError("Brak wolnej alokacji", true);
+      // Gry z panelem webowym (FiveM + txAdmin) dostają drugą alokację z zakresu portów txAdmin
+      const extra = needsTxAdmin ? await tx.allocation.findFirst({ where: { ...free, id: { not: alloc.id }, port: { gte: TXADMIN_PORTS[0], lte: TXADMIN_PORTS[1] } }, orderBy: { port: "asc" } }) : null;
+      if (needsTxAdmin && !extra) throw new ProvisioningError("Brak wolnego portu txAdmin (zakres 40120–40199) na węźle", true);
       const sub = await tx.subscription.findUnique({ where: { orderItemId: item.id } });
       const s = await tx.server.create({ data: {
         userId: order.userId, planId: plan.id, orderItemId: item.id, subscriptionId: sub?.id, nodeId, name: item.serverName,
@@ -60,14 +67,21 @@ export async function processJob(jobId: string): Promise<string> {
       } });
       const claim = await tx.allocation.updateMany({ where: { id: alloc.id, serverId: null }, data: { serverId: s.id } });
       if (claim.count === 0) throw new ProvisioningError("Alokacja zajęta, ponowna próba", true);
+      if (extra) {
+        const c2 = await tx.allocation.updateMany({ where: { id: extra.id, serverId: null, extraForServerId: null }, data: { extraForServerId: s.id } });
+        if (c2.count === 0) throw new ProvisioningError("Port txAdmin zajęty, ponowna próba", true);
+      }
       return s;
     });
     const alloc = await db.allocation.findUniqueOrThrow({ where: { serverId: server.id } });
+    const extras = await db.allocation.findMany({ where: { extraForServerId: server.id }, orderBy: { port: "asc" } });
     const ext = await adapter.createServer({
       name: item.serverName, ownerEmail: order.user.email, ownerName: order.user.name, gameSlug: plan.game.slug, ramMb: plan.ramMb, cpuPercent: plan.cpuPercent, diskMb: plan.diskMb,
       node: { id: node.id, pterodactylNodeId: node.pterodactylNodeId }, allocation: { ip: alloc.ip, port: alloc.port, externalId: alloc.pterodactylId }, nestId: plan.pterodactylNestId,
       eggId: plan.pterodactylEggId, dockerImage: plan.dockerImage, idempotencyKey: item.id,
       // Nazwa serwera i limit graczy pochodzą z zamówienia/pakietu; MAX_PLAYERS na końcu, żeby klient nie przekroczył slotów z pakietu.
+      extraAllocations: extras.map((e) => ({ ip: e.ip, port: e.port, externalId: e.pterodactylId })),
+      systemVars: extras[0] ? { TXHOST_TXA_PORT: String(extras[0].port) } : undefined, // txAdmin nasłuchuje na przydzielonym porcie
       envVars: { SERVER_HOSTNAME: item.serverName, SERVER_NAME: item.serverName, ...((item.config as { envVars?: Record<string, string> } | null)?.envVars ?? {}), MAX_PLAYERS: String(plan.slots) },
     });
     await db.$transaction([

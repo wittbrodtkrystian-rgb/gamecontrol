@@ -67,7 +67,7 @@ export class PterodactylAdapter implements GameServerAdapter {
       const a = v.attributes;
       // Klient może nadpisać wyłącznie zmienne, które egg oznacza jako user_editable (np. SRCDS_TOKEN); resztę ustala egg/admin.
       const custom = a.user_editable === true ? i.envVars?.[a.env_variable] : undefined;
-      let value: string | number = custom !== undefined && custom !== "" ? custom : a.default_value ?? "";
+      let value: string | number = i.systemVars?.[a.env_variable] ?? (custom !== undefined && custom !== "" ? custom : a.default_value ?? "");
       // Panel waliduje reguły egga przy POST /servers: pusta wymagana zmienna = HTTP 422 (np. CS2: RCON_PASSWORD, STEAM_GSLT).
       if (value === "" && /\brequired\b/.test(a.rules ?? "") && !/\bnullable\b/.test(a.rules ?? "")) {
         if (a.env_variable === "RCON_PASSWORD") value = randomBytes(12).toString("hex"); // alpha_dash, 24 znaki; hasło jest w panelu/Client API
@@ -75,12 +75,14 @@ export class PterodactylAdapter implements GameServerAdapter {
       }
       environment[a.env_variable] = value;
     }
+    const extraIds = (i.extraAllocations ?? []).map((e) => e.externalId).filter((x): x is number => x != null);
+    if ((i.extraAllocations ?? []).length !== extraIds.length) throw new ProvisioningError("Dodatkowa alokacja nie jest zsynchronizowana z Pterodactyl (uruchom synchronizację węzłów)", false);
     const r = await app("POST", "/servers", {
       name: i.name, user: owner, egg: i.eggId, docker_image: i.dockerImage ?? egg.docker_image, startup: egg.startup,
       environment, external_id: i.idempotencyKey,
       limits: { memory: i.ramMb, swap: 0, disk: i.diskMb, io: 500, cpu: i.cpuPercent },
-      feature_limits: { databases: 0, backups: 3, allocations: 1 },
-      allocation: { default: i.allocation.externalId }, start_on_completion: false,
+      feature_limits: { databases: 0, backups: 3, allocations: 1 + extraIds.length },
+      allocation: { default: i.allocation.externalId, ...(extraIds.length ? { additional: extraIds } : {}) }, start_on_completion: false,
     });
     return { externalId: String(r.attributes.id), externalUuid: String(r.attributes.uuid) };
   }

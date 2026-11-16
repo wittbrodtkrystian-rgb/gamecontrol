@@ -12,6 +12,10 @@ export interface CreateServerInput {
   idempotencyKey: string;
   /** Zmienne egga wybrane przez klienta przy zamówieniu (np. token GSLT); adapter filtruje je do user_editable. */
   envVars?: Record<string, string>;
+  /** Dodatkowe alokacje serwera (np. port txAdmin). */
+  extraAllocations?: { ip: string; port: number; externalId: number | null }[];
+  /** Zmienne ustawiane przez platformę (nie przez klienta), nadpisują domyślne wartości egga niezależnie od user_editable. */
+  systemVars?: Record<string, string>;
 }
 export class ProvisioningError extends Error {
   constructor(message: string, public retryable = true) { super(message); }

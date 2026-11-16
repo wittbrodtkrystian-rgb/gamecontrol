@@ -36,7 +36,7 @@ export function NodeToggles({ id, enabled, maintenance, canEdit }: { id: string;
 /** Dodanie nowej maszyny: tworzy węzeł i alokacje w Pterodactylu, zwraca skrypt instalacji Wings (z tokenem — pokazywany raz). */
 export function NodeProvisionForm() {
   const r = useRouter();
-  const [f, setF] = useState({ name: "", fqdn: "", ip: "", scheme: "https", ramGb: "32", diskGb: "900", threads: "12", ports: "25565-25599, 27015-27099, 28015-28099, 30120-30199" });
+  const [f, setF] = useState({ name: "", fqdn: "", ip: "", scheme: "https", ramGb: "32", diskGb: "900", threads: "12", ports: "25565-25599, 27015-27099, 28015-28099, 30120-30199, 40120-40199" });
   const [busy, setBusy] = useState(false), [err, setErr] = useState(""), [script, setScript] = useState(""), [copied, setCopied] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   async function submit(e: React.FormEvent) {
