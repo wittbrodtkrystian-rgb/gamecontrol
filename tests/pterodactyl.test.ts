@@ -10,12 +10,12 @@ import { settlePayment } from "@/server/payments";
 import { syncNodes } from "@/server/nodes-sync";
 
 // MOCK API Pterodactyl — sprawdza naszą logikę żądań, NIE prawdziwy panel.
-let srv: http.Server; const calls: { method: string; url: string; auth?: string; body?: any }[] = [];
+let srv: http.Server; const calls: { method: string; url: string; auth?: string; body?: any; raw?: string }[] = [];
 let servers: Record<string, any> = {}; let users: any[] = []; let state = "offline"; let gsltRequired = false;
 beforeAll(async () => {
   srv = http.createServer((rq, rs) => {
     let raw = ""; rq.on("data", (c) => (raw += c)); rq.on("end", () => {
-      const body = raw ? JSON.parse(raw) : undefined; const url = rq.url!; calls.push({ method: rq.method!, url, auth: rq.headers.authorization, body });
+      let body: any; try { body = raw ? JSON.parse(raw) : undefined; } catch { body = undefined; } const url = rq.url!; calls.push({ method: rq.method!, url, auth: rq.headers.authorization, body, raw });
       const send = (code: number, o: unknown) => { rs.writeHead(code, { "content-type": "application/json" }); rs.end(JSON.stringify(o)); };
       if (url.startsWith("/api/application/users?filter")) return send(200, { data: users.map((a) => ({ attributes: a })) });
       if (url === "/api/application/users" && rq.method === "POST") { const a = { id: 7, email: body.email }; users.push(a); return send(201, { attributes: a }); }
@@ -24,6 +24,7 @@ beforeAll(async () => {
       if (url === "/api/application/servers" && rq.method === "POST") { const s = { id: 42, uuid: "abcdef12-0000-0000-0000-000000000000", external_id: body.external_id }; servers[body.external_id] = s; return send(201, { attributes: s }); }
       if (url.startsWith("/api/application/nodes?")) return send(200, { data: [{ attributes: { id: 3, name: "wings1", fqdn: "w.local", memory: 8192, memory_overallocate: 0, disk: 50000, disk_overallocate: 0, maintenance_mode: false } }] });
       if (url.startsWith("/api/application/nodes/3/allocations")) return send(200, { data: [{ attributes: { id: 100, ip: "10.0.0.1", port: 25565 } }, { attributes: { id: 101, ip: "10.0.0.1", port: 25566 } }], meta: { pagination: { total_pages: 1 } } });
+      if (url.includes("/files/write")) return send(204, {});
       if (url.endsWith("/power")) { state = body.signal === "start" ? "starting" : "stopping"; return send(204, {}); }
       if (url.endsWith("/resources")) return send(200, { attributes: { current_state: state, resources: { cpu_absolute: 12.34, memory_bytes: 1048576 * 512, disk_bytes: 1048576 * 100, network_rx_bytes: 2048, network_tx_bytes: 4096 } } });
       send(404, {});
@@ -77,6 +78,14 @@ describe("adapter Pterodactyl (mock API)", () => {
     const input = { name: "x", ownerEmail: "a@b.pl", ownerName: "A B", gameSlug: "cs2", ramMb: 1, cpuPercent: 1, diskMb: 1, node: { id: "n", pterodactylNodeId: 3 }, allocation: { ip: "1", port: 1, externalId: 100 }, nestId: 1, eggId: 5, dockerImage: null, idempotencyKey: "item-gslt" };
     await expect(new PterodactylAdapter().createServer(input)).rejects.toMatchObject({ retryable: false, message: expect.stringContaining("STEAM_GSLT") });
     expect(calls.some((c) => c.method === "POST" && c.url === "/api/application/servers")).toBe(false);
+  });
+  it("EULA Minecrafta: przy starcie zapisuje eula.txt tylko, gdy klient ją zaakceptował", async () => {
+    const a = new PterodactylAdapter(); const s = { externalUuid: "abcdef12-0000" };
+    await a.power({ ...s, eulaAccepted: true }, "start");
+    const w = calls.find((c) => c.url.startsWith("/api/client/servers/abcdef12/files/write"))!;
+    expect(w.url).toContain("file=%2Feula.txt"); expect(w.raw).toBe("eula=true\n");
+    calls.length = 0; await a.power(s, "start"); await a.power({ ...s, eulaAccepted: true }, "stop");
+    expect(calls.some((c) => c.url.includes("/files/write"))).toBe(false);
   });
   it("zasilanie i stan przez Client API", async () => {
     const a = new PterodactylAdapter(); const s = { externalUuid: "abcdef12-0000" };

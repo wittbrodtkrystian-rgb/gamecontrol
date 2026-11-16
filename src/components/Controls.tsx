@@ -70,18 +70,23 @@ export function Metrics({ serverId }: { serverId: string }) {
 export function OrderForm({ plans, initial }: { plans: { id: string; label: string; price: string }[]; initial?: string }) {
   const [planId, setPlanId] = useState(initial && plans.some((p) => p.id === initial) ? initial : plans[0]?.id ?? "");
   const [name, setName] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
-  const [gslt, setGslt] = useState("");
+  const [gslt, setGslt] = useState(""), [eula, setEula] = useState(false), [lic, setLic] = useState("");
+  const planLabel = plans.find((p) => p.id === planId)?.label ?? "";
+  const isMc = /Minecraft/i.test(planLabel), isCs = /Counter-Strike/i.test(planLabel), isFivem = /FiveM/i.test(planLabel);
+  const envVars = { ...(isCs && gslt.trim() ? { STEAM_GSLT: gslt.trim() } : {}), ...(isFivem && lic.trim() ? { FIVEM_LICENSE: lic.trim() } : {}) };
   const [key] = useState(() => crypto.randomUUID());
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setErr("");
-    try { const o = await api<{ id: string }>("/api/orders", "POST", { items: [{ planId, serverName: name, ...(gslt.trim() ? { envVars: { STEAM_GSLT: gslt.trim() } } : {}) }], idempotencyKey: key }); window.location.href = `/panel/zamowienia/${o.id}`; }
+    try { const o = await api<{ id: string }>("/api/orders", "POST", { items: [{ planId, serverName: name, ...(isMc ? { acceptEula: eula } : {}), ...(Object.keys(envVars).length ? { envVars } : {}) }], idempotencyKey: key }); window.location.href = `/panel/zamowienia/${o.id}`; }
     catch (x) { setErr((x as Error).message); setBusy(false); }
   }
   return (
     <form onSubmit={submit} className="card max-w-xl space-y-4">
       <div><label className="label" htmlFor="plan">Pakiet</label><select id="plan" className="input" value={planId} onChange={(e) => setPlanId(e.target.value)}>{plans.map((p) => <option key={p.id} value={p.id}>{p.label} — {p.price}/mies.</option>)}</select></div>
       <div><label className="label" htmlFor="sname">Nazwa serwera</label><input id="sname" className="input" value={name} onChange={(e) => setName(e.target.value)} required minLength={3} maxLength={40} placeholder="np. Moje Survival" /></div>
-      <div><label className="label" htmlFor="gslt">Token Steam GSLT (tylko Counter-Strike 2)</label><input id="gslt" className="input" value={gslt} onChange={(e) => setGslt(e.target.value)} maxLength={32} autoComplete="off" placeholder="32 znaki z steamcommunity.com/dev/managegameservers" /></div>
+      {isMc && <label className="flex items-start gap-2 text-sm text-slate-300"><input type="checkbox" className="mt-1" checked={eula} onChange={(e) => setEula(e.target.checked)} required /><span>Akceptuję <a className="text-neon underline" href="https://aka.ms/MinecraftEULA" target="_blank" rel="noopener noreferrer">umowę EULA Minecrafta</a>. Jest wymagana, żeby serwer mógł wystartować.</span></label>}
+      {isFivem && <div><label className="label" htmlFor="lic">Klucz licencyjny FiveM (Cfx.re)</label><input id="lic" className="input" value={lic} onChange={(e) => setLic(e.target.value)} maxLength={33} required autoComplete="off" placeholder="Klucz z portal.cfx.re" /><p className="mt-1 text-xs text-slate-500">Każdy serwer wymaga własnego klucza. Wygenerujesz go bezpłatnie na portal.cfx.re.</p></div>}
+      {isCs && <div><label className="label" htmlFor="gslt">Token Steam GSLT (Counter-Strike 2)</label><input id="gslt" className="input" value={gslt} onChange={(e) => setGslt(e.target.value)} maxLength={32} autoComplete="off" placeholder="32 znaki z steamcommunity.com/dev/managegameservers" /></div>}
       {err && <p role="alert" className="text-sm text-red-300">{err}</p>}
       <button className="btn-primary w-full" disabled={busy || !planId}>Przejdź do płatności</button>
     </form>

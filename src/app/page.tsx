@@ -10,7 +10,7 @@ const ACCENTS = [
   { from: "from-orange-400/25", text: "text-orange-300", icon: "🔥" },
 ];
 const STEPS = [
-  ["1", "Wybierz grę", "Minecraft, CS2 albo Rust. Pakiet dobierzesz do liczby graczy."],
+  ["1", "Wybierz pakiet", "Dobierz pakiet do liczby graczy i modów. Zmienisz go, kiedy serwer urośnie."],
   ["2", "Zamów", "Podajesz nazwę serwera i płacisz. Bez formularzy na pół strony."],
   ["3", "Graj", "Serwer tworzy się sam. Włączasz go jednym kliknięciem w panelu."],
 ];
@@ -35,7 +35,7 @@ export default async function Home() {
           <h1 className="rise mx-auto max-w-4xl text-5xl font-black leading-[1.05] tracking-tight sm:text-7xl">
             Twój serwer gier.<br /><span className="shine-text">Włączony w minutę.</span>
           </h1>
-          <p className="rise mx-auto mt-6 max-w-xl text-lg text-slate-300">Minecraft, Counter-Strike 2 i Rust. Zamów, zapłać i zarządzaj wszystkim z jednego, prostego panelu.</p>
+          <p className="rise mx-auto mt-6 max-w-xl text-lg text-slate-300">Hosting serwerów Minecraft: Vanilla, Paper, Purpur, Fabric i Forge. Zamów, zapłać i zarządzaj wszystkim z jednego, prostego panelu.</p>
           <div className="rise mt-10 flex flex-wrap justify-center gap-4">
             <Link href="/oferta" className="btn-primary btn-xl">Wybierz serwer →</Link>
             <Link href="/rejestracja" className="btn-ghost btn-xl">Załóż konto</Link>

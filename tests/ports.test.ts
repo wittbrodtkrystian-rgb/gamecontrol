@@ -12,6 +12,7 @@ describe("przydział portów wg gry", () => {
     expect(preferredPorts("minecraft")).toEqual([25565, 25599]);
     expect(preferredPorts("cs2")).toEqual([27015, 27099]);
     expect(preferredPorts("rust")).toEqual([28015, 28099]);
+    expect(preferredPorts("fivem")).toEqual([30120, 30199]);
     expect(preferredPorts("nieznana")).toBeNull();
   });
 
@@ -31,6 +32,27 @@ describe("przydział portów wg gry", () => {
     expect((await order(plan.id, "Serwer CS2 2")).port).toBe(27016);
   });
 
+  it("Minecraft poza DEMO wymaga zaakceptowania EULA", async () => {
+    const { plan } = await seedCatalog({ allocations: 1 }); const u = await makeUser("CUSTOMER");
+    process.env.DEMO_MODE = "false";
+    try {
+      await expect(createOrder(u.user.id, { items: [{ planId: plan.id, serverName: "Bez EULA" }] })).rejects.toMatchObject({ status: 400, code: "EULA_REQUIRED" });
+      const o = await createOrder(u.user.id, { items: [{ planId: plan.id, serverName: "Z EULA", acceptEula: true }] });
+      expect((await db.orderItem.findFirstOrThrow({ where: { orderId: o.id } })).config).toMatchObject({ acceptEula: true });
+    } finally { delete process.env.DEMO_MODE; }
+  });
+  it("FiveM poza DEMO wymaga poprawnego klucza licencyjnego Cfx.re i zapisuje go w zamówieniu", async () => {
+    const { game } = await seedCatalog({ allocations: 1 }); const u = await makeUser("CUSTOMER");
+    const fv = await db.game.create({ data: { slug: "fivem", name: "FiveM", description: "t" } });
+    const plan = await db.hostingPlan.create({ data: { gameId: fv.id, slug: "fivem-start", name: "Start", priceMonthly: 2100, ramMb: 2048, cpuPercent: 100, diskMb: 15360, slots: 16 } });
+    void game; process.env.DEMO_MODE = "false";
+    try {
+      for (const envVars of [undefined, { FIVEM_LICENSE: "krotki" }, { FIVEM_LICENSE: "x".repeat(40) }, { FIVEM_LICENSE: "abc def ghi jkl" }])
+        await expect(createOrder(u.user.id, { items: [{ planId: plan.id, serverName: "RP Serwer", envVars }] })).rejects.toMatchObject({ code: "LICENSE_REQUIRED" });
+      const o = await createOrder(u.user.id, { items: [{ planId: plan.id, serverName: "RP Serwer", envVars: { FIVEM_LICENSE: "cfxk_abcdefgh_1234" } }] });
+      expect((await db.orderItem.findFirstOrThrow({ where: { orderId: o.id } })).config).toMatchObject({ envVars: { FIVEM_LICENSE: "cfxk_abcdefgh_1234" } });
+    } finally { delete process.env.DEMO_MODE; }
+  });
   it("gdy zakres gry jest zajęty, bierze dowolną wolną alokację (bez błędu)", async () => {
     await seedCatalog({ allocations: 2 }); // tylko 25565-25566
     const cs2 = await db.game.create({ data: { slug: "cs2", name: "Counter-Strike 2", description: "t" } });

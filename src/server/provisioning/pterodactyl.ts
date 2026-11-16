@@ -26,6 +26,18 @@ async function call(kind: "application" | "client", key: string, method: string,
 export const app = (m: string, p: string, b?: unknown) => call("application", env.pteroKey, m, p, b);
 const client = (m: string, p: string, b?: unknown) => call("client", env.pteroClientKey, m, p, b);
 
+/** Zapis pliku w katalogu serwera przez Client API (treść jako zwykły tekst). */
+async function writeFile(uuid: string, path: string, content: string) {
+  if (!env.pteroUrl || !env.pteroClientKey) throw new ProvisioningError("Pterodactyl (client) nie jest skonfigurowany", false);
+  let res: Response;
+  try {
+    res = await fetch(`${env.pteroUrl.replace(/\/$/, "")}/api/client/servers/${uuid.slice(0, 8)}/files/write?file=${encodeURIComponent(path)}`, {
+      method: "POST", signal: AbortSignal.timeout(15000), headers: { Authorization: `Bearer ${env.pteroClientKey}`, Accept: "application/json", "Content-Type": "text/plain" }, body: content,
+    });
+  } catch (e) { throw new ProvisioningError(`Pterodactyl niedostępny: ${(e as Error).message}`, true); }
+  if (!res.ok) throw new ProvisioningError(`Pterodactyl HTTP ${res.status} przy zapisie ${path}`, res.status >= 500 || res.status === 429);
+}
+
 const STATE: Record<string, ServerStatus> = { running: "RUNNING", starting: "STARTING", stopping: "STOPPING", offline: "OFFLINE" };
 
 export class PterodactylAdapter implements GameServerAdapter {
@@ -73,8 +85,10 @@ export class PterodactylAdapter implements GameServerAdapter {
     return { externalId: String(r.attributes.id), externalUuid: String(r.attributes.uuid) };
   }
 
-  async power(s: { externalUuid: string | null }, action: PowerAction): Promise<ServerStatus> {
+  async power(s: { externalUuid: string | null; eulaAccepted?: boolean }, action: PowerAction): Promise<ServerStatus> {
     if (!s.externalUuid) throw new ProvisioningError("Serwer nie ma uuid Pterodactyl", false);
+    // Minecraft nie wystartuje bez eula.txt (eula=true). Klient zaakceptował EULA przy zamówieniu — zapisujemy plik przed startem.
+    if (s.eulaAccepted && (action === "start" || action === "restart")) await writeFile(s.externalUuid, "/eula.txt", "eula=true\n");
     const signal = action;
     await client("POST", `/servers/${s.externalUuid.slice(0, 8)}/power`, { signal });
     return action === "start" || action === "restart" ? "STARTING" : "STOPPING"; // stan końcowy ustala resources()

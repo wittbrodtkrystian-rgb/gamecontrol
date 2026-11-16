@@ -14,7 +14,7 @@ const CONTROLLABLE: ServerStatus[] = ["OFFLINE", "RUNNING", "STARTING", "STOPPIN
 export async function getServerFor(actor: Actor, id: string) {
   const s = await db.server.findFirst({
     where: { id, ...(actor.role === "CUSTOMER" ? { userId: actor.id } : {}) },
-    include: { plan: { include: { game: true } }, node: true, allocation: true, subscription: true },
+    include: { plan: { include: { game: true } }, node: true, allocation: true, subscription: true, orderItem: { select: { config: true } } },
   });
   if (!s) throw notFound();
   return s;
@@ -24,7 +24,8 @@ export async function powerServer(actor: Actor, id: string, action: z.infer<type
   const s = await getServerFor(actor, id);
   if (!CONTROLLABLE.includes(s.status)) throw new ApiError(409, "BAD_STATE", "Serwer nie jest gotowy do sterowania");
   if (s.subscription && s.subscription.status !== "ACTIVE") throw new ApiError(402, "SUBSCRIPTION_INACTIVE", "Usługa wygasła — odnów abonament");
-  const status = await getAdapter().power(s, action);
+  const eulaAccepted = (s.orderItem?.config as { acceptEula?: boolean } | null)?.acceptEula === true;
+  const status = await getAdapter().power({ externalId: s.externalId, externalUuid: s.externalUuid, eulaAccepted }, action);
   await db.server.update({ where: { id }, data: { status } });
   await audit(actor.id, `server.${action}`, "Server", id);
   return { status };

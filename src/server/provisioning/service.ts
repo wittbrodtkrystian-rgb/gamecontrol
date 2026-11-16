@@ -7,7 +7,7 @@ import { ProvisioningError } from "./adapter";
 const BACKOFF_MIN = [1, 5, 15, 60, 180];
 
 /** Domyślne porty gier: Minecraft 25565, CS2 27015, Rust 28015 (zakresy, z których wybieramy wolną alokację w pierwszej kolejności). */
-const PREFERRED_PORTS: [string, [number, number]][] = [["minecraft", [25565, 25599]], ["cs2", [27015, 27099]], ["rust", [28015, 28099]]];
+const PREFERRED_PORTS: [string, [number, number]][] = [["minecraft", [25565, 25599]], ["cs2", [27015, 27099]], ["rust", [28015, 28099]], ["fivem", [30120, 30199]]];
 export const preferredPorts = (slug: string) => PREFERRED_PORTS.find(([k]) => slug.toLowerCase().includes(k))?.[1] ?? null;
 
 /** Wybiera węzeł z wolnym RAM/dyskiem/CPU i wolną alokacją; zwraca null, gdy brak zasobów. */
@@ -67,7 +67,8 @@ export async function processJob(jobId: string): Promise<string> {
       name: item.serverName, ownerEmail: order.user.email, ownerName: order.user.name, gameSlug: plan.game.slug, ramMb: plan.ramMb, cpuPercent: plan.cpuPercent, diskMb: plan.diskMb,
       node: { id: node.id, pterodactylNodeId: node.pterodactylNodeId }, allocation: { ip: alloc.ip, port: alloc.port, externalId: alloc.pterodactylId }, nestId: plan.pterodactylNestId,
       eggId: plan.pterodactylEggId, dockerImage: plan.dockerImage, idempotencyKey: item.id,
-      envVars: (item.config as { envVars?: Record<string, string> } | null)?.envVars,
+      // Nazwa serwera i limit graczy pochodzą z zamówienia/pakietu; MAX_PLAYERS na końcu, żeby klient nie przekroczył slotów z pakietu.
+      envVars: { SERVER_HOSTNAME: item.serverName, SERVER_NAME: item.serverName, ...((item.config as { envVars?: Record<string, string> } | null)?.envVars ?? {}), MAX_PLAYERS: String(plan.slots) },
     });
     await db.$transaction([
       db.server.update({ where: { id: server.id }, data: { status: "OFFLINE", externalId: ext.externalId, externalUuid: ext.externalUuid } }),

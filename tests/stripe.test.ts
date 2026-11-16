@@ -23,7 +23,7 @@ beforeEach(async () => { await resetDb(); process.env.DEMO_MODE = "false"; proce
 describe("Stripe Checkout (mock API)", () => {
   it("tworzy sesję z kwotą z bazy, a webhook opłaca zamówienie bez duplikatu płatności", async () => {
     const { plan } = await seedCatalog(); const u = await makeUser("CUSTOMER"), other = await makeUser("CUSTOMER");
-    const o = await createOrder(u.user.id, { items: [{ planId: plan.id, serverName: "Stripe" }] });
+    const o = await createOrder(u.user.id, { items: [{ planId: plan.id, serverName: "Stripe", acceptEula: true }] });
     expect((await checkout(req("POST", `/api/orders/${o.id}/checkout`, { token: other.token }), ctx({ id: o.id }))).status).toBe(404);
     const r = await checkout(req("POST", `/api/orders/${o.id}/checkout`, { token: u.token }), ctx({ id: o.id }));
     expect((await r.json()).url).toContain("checkout.stripe.test");
@@ -38,7 +38,7 @@ describe("Stripe Checkout (mock API)", () => {
   });
   it("tryb DEMO blokuje Stripe, brak klucza = 503", async () => {
     const { plan } = await seedCatalog(); const u = await makeUser("CUSTOMER");
-    const o = await createOrder(u.user.id, { items: [{ planId: plan.id, serverName: "S" }] });
+    const o = await createOrder(u.user.id, { items: [{ planId: plan.id, serverName: "S", acceptEula: true }] });
     delete process.env.STRIPE_SECRET_KEY;
     expect((await checkout(req("POST", `/api/orders/${o.id}/checkout`, { token: u.token }), ctx({ id: o.id }))).status).toBe(503);
     process.env.DEMO_MODE = "true"; process.env.STRIPE_SECRET_KEY = "sk_test_x";

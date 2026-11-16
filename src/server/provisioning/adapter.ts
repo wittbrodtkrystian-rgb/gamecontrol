@@ -21,7 +21,7 @@ export interface GameServerAdapter {
   readonly isDemo: boolean;
   createServer(input: CreateServerInput): Promise<{ externalId: string; externalUuid: string }>;
   /** Zwraca docelowy status po wykonaniu akcji. */
-  power(server: { externalId: string | null; externalUuid: string | null }, action: PowerAction): Promise<ServerStatus>;
+  power(server: { externalId: string | null; externalUuid: string | null; eulaAccepted?: boolean }, action: PowerAction): Promise<ServerStatus>;
   /** Odczyt stanu i zasobów (Client API). null = brak danych. */
   resources?(server: { externalUuid: string | null }): Promise<{ state: ServerStatus; cpu: number; ramMb: number; diskMb: number; netInKb: number; netOutKb: number } | null>;
   suspend(server: { externalId: string | null }, suspended: boolean): Promise<void>;

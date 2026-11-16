@@ -11,6 +11,9 @@ const games = [
     features: { modes: ["Publiczny", "Retake", "Deathmatch", "Arena 1v1"], workshopMaps: true, addons: "CounterStrikeSharp/Metamod — ręczna instalacja" } },
   { slug: "rust", name: "Rust", sortOrder: 3, description: "Vanilla i modded (uMod/Oxide), zarządzanie wipe.",
     features: { modes: ["Vanilla", "Modded"], wipe: true, plugins: "uMod/Oxide, jeśli wybrany silnik je obsługuje" } },
+  // FiveM: wyłączone domyślnie, dopóki klient nie ma dostępu do plików/txAdmin; wymaga własnego klucza z portal.cfx.re (max 48 slotów w eggu)
+  { slug: "fivem", name: "FiveM (GTA RP)", sortOrder: 4, enabled: false, description: "Serwery GTA V Roleplay i Freeroam. Wymagany własny klucz licencyjny Cfx.re.",
+    features: { modes: ["Roleplay", "Freeroam"], txAdmin: true, licenseKeyRequired: true, maxSlots: 48 } },
 ];
 // ceny w groszach — TESTOWE
 const plans = [
@@ -20,6 +23,9 @@ const plans = [
   ["cs2", "cs2-basic", "Basic", 2900, 4096, 200, 76800, 12], // CS2 po instalacji zajmuje ok. 69 GB; przy 50 GB Wings odmawia startu ("not enough disk space")
   ["cs2", "cs2-pro", "Pro", 5900, 8192, 400, 76800, 32],
   ["rust", "rust-survival", "Survival", 9900, 12288, 400, 40960, 100],
+  ["fivem", "fivem-start", "Start", 2100, 2048, 100, 15360, 16], // ceny FiveM są propozycją do ustalenia
+  ["fivem", "fivem-standard", "Standard", 3900, 4096, 200, 25600, 32],
+  ["fivem", "fivem-pro", "Pro", 6900, 6144, 300, 40960, 48],
 ] as const;
 
 async function main() {
