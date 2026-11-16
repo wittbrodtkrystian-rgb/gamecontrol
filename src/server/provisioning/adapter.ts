@@ -30,9 +30,19 @@ export interface FileOps {
   remove(s: { externalUuid: string | null }, dir: string, names: string[]): Promise<void>;
   rename(s: { externalUuid: string | null }, dir: string, from: string, to: string): Promise<void>;
 }
+/** Prawdziwe kopie zapasowe serwera (Client API Pterodactyla). */
+export interface BackupOps {
+  create(s: { externalUuid: string | null }, name: string): Promise<{ externalId: string }>;
+  /** ready=false i failed=false => kopia jest jeszcze tworzona. */
+  status(s: { externalUuid: string | null }, externalId: string): Promise<{ ready: boolean; failed: boolean; sizeMb: number }>;
+  remove(s: { externalUuid: string | null }, externalId: string): Promise<void>;
+  restore(s: { externalUuid: string | null }, externalId: string): Promise<void>;
+}
 export interface GameServerAdapter {
   readonly name: string;
   readonly isDemo: boolean;
+  /** Kopie zapasowe; brak = tylko rekordy (adapter DEMO). */
+  readonly backups?: BackupOps;
   /** Menedżer plików; brak = niedostępny (np. adapter DEMO). */
   readonly files?: FileOps;
   createServer(input: CreateServerInput): Promise<{ externalId: string; externalUuid: string }>;

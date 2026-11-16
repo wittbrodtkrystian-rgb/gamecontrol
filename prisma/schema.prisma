@@ -290,6 +290,7 @@ model Backup {
   name      String
   sizeMb    Int          @default(0)
   status    BackupStatus @default(CREATING)
+  externalId String?     // uuid kopii w Pterodactylu (brak dla serwerów DEMO)
   locked    Boolean      @default(false)
   createdAt DateTime     @default(now())
   @@index([serverId, createdAt])

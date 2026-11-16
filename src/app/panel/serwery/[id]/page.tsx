@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { getServerFor } from "@/server/servers";
+import { getServerFor, listBackups } from "@/server/servers";
 import { Badge, PageTitle, Table, dt } from "@/components/ui";
 import { ActionButton, Console, Metrics, PowerControls } from "@/components/Controls";
 import { formatMb } from "@/lib/money";
@@ -16,7 +16,7 @@ export default async function ServerPage({ params, searchParams }: { params: Pro
   const user = (await getCurrentUser())!; const { id } = await params; const tab = (await searchParams).tab ?? "przeglad";
   const s = await getServerFor(user, id).catch(() => null);
   if (!s) notFound();
-  const backups = tab === "kopie" ? await db.backup.findMany({ where: { serverId: id }, orderBy: { createdAt: "desc" } }) : [];
+  const backups = tab === "kopie" ? await listBackups(user, id) : [];
   const expired = s.subscription && s.subscription.status !== "ACTIVE";
   const engines = engineDefs(s.plan.game.features); const cfg = (s.orderItem?.config ?? {}) as { engine?: string; version?: string };
   return (
@@ -41,8 +41,10 @@ export default async function ServerPage({ params, searchParams }: { params: Pro
       {tab === "kopie" && <div className="space-y-4"><ActionButton url={`/api/servers/${s.id}/backups`} label="+ Utwórz kopię zapasową" className="btn-primary" />
         {backups.length === 0 ? <div className="card text-sm text-slate-400">Brak kopii zapasowych (limit: 3).</div> :
           <Table head={["Nazwa", "Rozmiar", "Status", "Data", ""]}>{backups.map((b) => <tr key={b.id}><td className="td">{b.name}</td><td className="td">{formatMb(b.sizeMb)}</td><td className="td"><Badge s={b.status} /></td><td className="td">{dt(b.createdAt)}</td>
-            <td className="td text-right"><ActionButton url={`/api/servers/${s.id}/backups/${b.id}`} method="DELETE" label="Usuń" className="btn-danger" confirm="Usunąć kopię zapasową?" /></td></tr>)}</Table>}
-        <p className="text-xs text-slate-500">Przywracanie kopii wymaga Wings (Etap 2).</p></div>}
+            <td className="td text-right"><div className="flex justify-end gap-2">
+              {!s.isDemo && b.status === "READY" && <ActionButton url={`/api/servers/${s.id}/backups/${b.id}/restore`} label="Przywróć" className="btn-ghost" confirm="Przywrócić kopię? Pliki serwera zostaną nadpisane stanem z kopii (serwer musi być zatrzymany)." />}
+              <ActionButton url={`/api/servers/${s.id}/backups/${b.id}`} method="DELETE" label="Usuń" className="btn-danger" confirm="Usunąć kopię zapasową?" /></div></td></tr>)}</Table>}
+        <p className="text-xs text-slate-500">{s.isDemo ? "Serwer DEMO: kopie są tylko symulowane." : "Kopie są tworzone w tle — odśwież stronę, aby zobaczyć status. Przywracanie wymaga zatrzymanego serwera."}</p></div>}
       {tab === "statystyki" && <Metrics serverId={s.id} />}
     </>
   );

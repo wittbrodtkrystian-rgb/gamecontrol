@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "crypto";
 import { env } from "@/lib/env";
-import { ProvisioningError, type CreateServerInput, type FileOps, type GameServerAdapter, type PowerAction } from "./adapter";
+import { ProvisioningError, type BackupOps, type CreateServerInput, type FileOps, type GameServerAdapter, type PowerAction } from "./adapter";
 import type { ServerStatus } from "@prisma/client";
 
 /**
@@ -61,12 +61,31 @@ const pteroFiles: FileOps = {
   async rename(s, dir, from, to) { await client("PUT", `/servers/${sid(s)}/files/rename`, { root: dir, files: [{ from, to }] }); },
 };
 
+const pteroBackups: BackupOps = {
+  async create(s, name) {
+    const r = await client("POST", `/servers/${sid(s)}/backups`, { name });
+    const id = r?.attributes?.uuid; if (!id) throw new ProvisioningError("Pterodactyl nie zwrócił uuid kopii", false);
+    return { externalId: String(id) };
+  },
+  async status(s, externalId) {
+    const a = (await client("GET", `/servers/${sid(s)}/backups/${encodeURIComponent(externalId)}`))?.attributes ?? {};
+    const done = !!a.completed_at;
+    return { ready: done && a.is_successful === true, failed: done && a.is_successful === false, sizeMb: Math.round((a.bytes ?? 0) / 1048576) };
+  },
+  async remove(s, externalId) {
+    try { await client("DELETE", `/servers/${sid(s)}/backups/${encodeURIComponent(externalId)}`); }
+    catch (e) { if (!(e instanceof ProvisioningError && /HTTP 404/.test(e.message))) throw e; } // już usunięta w panelu
+  },
+  async restore(s, externalId) { await client("POST", `/servers/${sid(s)}/backups/${encodeURIComponent(externalId)}/restore`, { truncate: true }); },
+};
+
 const STATE: Record<string, ServerStatus> = { running: "RUNNING", starting: "STARTING", stopping: "STOPPING", offline: "OFFLINE" };
 
 export class PterodactylAdapter implements GameServerAdapter {
   readonly name = "Pterodactyl";
   readonly isDemo = false;
   readonly files = pteroFiles;
+  readonly backups = pteroBackups;
 
   private async ensureUser(email: string, name: string): Promise<number> {
     const found = await app("GET", `/users?filter[email]=${encodeURIComponent(email)}`);
