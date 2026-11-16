@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "crypto";
 import { env } from "@/lib/env";
-import { ProvisioningError, type CreateServerInput, type GameServerAdapter, type PowerAction } from "./adapter";
+import { ProvisioningError, type CreateServerInput, type FileOps, type GameServerAdapter, type PowerAction } from "./adapter";
 import type { ServerStatus } from "@prisma/client";
 
 /**
@@ -38,11 +38,35 @@ async function writeFile(uuid: string, path: string, content: string) {
   if (!res.ok) throw new ProvisioningError(`Pterodactyl HTTP ${res.status} przy zapisie ${path}`, res.status >= 500 || res.status === 429);
 }
 
+/** Odczyt pliku jako tekst (Client API zwraca surową treść). */
+async function readFile(uuid: string, path: string): Promise<string> {
+  if (!env.pteroUrl || !env.pteroClientKey) throw new ProvisioningError("Pterodactyl (client) nie jest skonfigurowany", false);
+  let res: Response;
+  try {
+    res = await fetch(`${env.pteroUrl.replace(/\/$/, "")}/api/client/servers/${uuid.slice(0, 8)}/files/contents?file=${encodeURIComponent(path)}`, { signal: AbortSignal.timeout(15000), headers: { Authorization: `Bearer ${env.pteroClientKey}`, Accept: "text/plain" } });
+  } catch (e) { throw new ProvisioningError(`Pterodactyl niedostępny: ${(e as Error).message}`, true); }
+  if (!res.ok) throw new ProvisioningError(`Pterodactyl HTTP ${res.status} przy odczycie ${path}`, res.status >= 500 || res.status === 429);
+  return res.text();
+}
+const sid = (s: { externalUuid: string | null }) => { if (!s.externalUuid) throw new ProvisioningError("Serwer nie ma uuid Pterodactyl", false); return s.externalUuid.slice(0, 8); };
+const pteroFiles: FileOps = {
+  async list(s, dir) {
+    const r = await client("GET", `/servers/${sid(s)}/files/list?directory=${encodeURIComponent(dir)}`);
+    return ((r?.data ?? []) as { attributes: { name: string; is_file: boolean; size: number; modified_at: string; mimetype: string } }[]).map((x) => ({ name: x.attributes.name, isFile: x.attributes.is_file, size: x.attributes.size, modifiedAt: x.attributes.modified_at, mime: x.attributes.mimetype }));
+  },
+  read: (s, path) => readFile(sid(s), path),
+  write: (s, path, content) => writeFile(sid(s), path, content),
+  async mkdir(s, dir, name) { await client("POST", `/servers/${sid(s)}/files/create-folder`, { root: dir, name }); },
+  async remove(s, dir, names) { await client("POST", `/servers/${sid(s)}/files/delete`, { root: dir, files: names }); },
+  async rename(s, dir, from, to) { await client("PUT", `/servers/${sid(s)}/files/rename`, { root: dir, files: [{ from, to }] }); },
+};
+
 const STATE: Record<string, ServerStatus> = { running: "RUNNING", starting: "STARTING", stopping: "STOPPING", offline: "OFFLINE" };
 
 export class PterodactylAdapter implements GameServerAdapter {
   readonly name = "Pterodactyl";
   readonly isDemo = false;
+  readonly files = pteroFiles;
 
   private async ensureUser(email: string, name: string): Promise<number> {
     const found = await app("GET", `/users?filter[email]=${encodeURIComponent(email)}`);

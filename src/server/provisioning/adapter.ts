@@ -20,9 +20,21 @@ export interface CreateServerInput {
 export class ProvisioningError extends Error {
   constructor(message: string, public retryable = true) { super(message); }
 }
+export interface FileEntry { name: string; isFile: boolean; size: number; modifiedAt: string; mime: string }
+/** Operacje na plikach serwera (Client API Pterodactyla). Ścieżki są już zwalidowane i znormalizowane przez warstwę serwisu. */
+export interface FileOps {
+  list(s: { externalUuid: string | null }, dir: string): Promise<FileEntry[]>;
+  read(s: { externalUuid: string | null }, path: string): Promise<string>;
+  write(s: { externalUuid: string | null }, path: string, content: string): Promise<void>;
+  mkdir(s: { externalUuid: string | null }, dir: string, name: string): Promise<void>;
+  remove(s: { externalUuid: string | null }, dir: string, names: string[]): Promise<void>;
+  rename(s: { externalUuid: string | null }, dir: string, from: string, to: string): Promise<void>;
+}
 export interface GameServerAdapter {
   readonly name: string;
   readonly isDemo: boolean;
+  /** Menedżer plików; brak = niedostępny (np. adapter DEMO). */
+  readonly files?: FileOps;
   createServer(input: CreateServerInput): Promise<{ externalId: string; externalUuid: string }>;
   /** Zwraca docelowy status po wykonaniu akcji. */
   power(server: { externalId: string | null; externalUuid: string | null; eulaAccepted?: boolean }, action: PowerAction): Promise<ServerStatus>;

@@ -6,6 +6,7 @@ import { getServerFor } from "@/server/servers";
 import { Badge, PageTitle, Table, dt } from "@/components/ui";
 import { ActionButton, Console, Metrics, PowerControls } from "@/components/Controls";
 import { formatMb } from "@/lib/money";
+import { FileManager } from "@/components/FileManager";
 export const dynamic = "force-dynamic";
 
 const tabs = [["przeglad", "Przegląd"], ["konsola", "Konsola"], ["pliki", "Pliki"], ["kopie", "Kopie zapasowe"], ["statystyki", "Statystyki"]] as const;
@@ -29,7 +30,9 @@ export default async function ServerPage({ params, searchParams }: { params: Pro
             {s.subscription && <ActionButton url={`/api/subscriptions/${s.subscription.id}/renew`} label="Przedłuż o miesiąc (DEMO)" />}</div>
         </div></div>}
       {tab === "konsola" && <Console serverId={s.id} running={s.status === "RUNNING"} demo={s.isDemo} />}
-      {tab === "pliki" && <div className="card text-sm text-slate-400">Menedżer plików i edycja konfiguracji (server.properties, cfg, pluginy) wymaga integracji z Wings/Pterodactyl — <b>Etap 2</b>. Nie jest dostępny w MVP.</div>}
+      {tab === "pliki" && (s.isDemo ? <div className="card text-sm text-slate-400">Menedżer plików działa tylko na prawdziwych serwerach (ten serwer jest w trybie DEMO).</div>
+        : !["OFFLINE", "RUNNING", "STARTING", "STOPPING"].includes(s.status) ? <div className="card text-sm text-slate-400">Serwer jest jeszcze w trakcie instalacji. Pliki będą dostępne po jej zakończeniu.</div>
+        : <FileManager serverId={s.id} canWrite={!expired} />)}
       {tab === "kopie" && <div className="space-y-4"><ActionButton url={`/api/servers/${s.id}/backups`} label="+ Utwórz kopię zapasową" className="btn-primary" />
         {backups.length === 0 ? <div className="card text-sm text-slate-400">Brak kopii zapasowych (limit: 3).</div> :
           <Table head={["Nazwa", "Rozmiar", "Status", "Data", ""]}>{backups.map((b) => <tr key={b.id}><td className="td">{b.name}</td><td className="td">{formatMb(b.sizeMb)}</td><td className="td"><Badge s={b.status} /></td><td className="td">{dt(b.createdAt)}</td>
