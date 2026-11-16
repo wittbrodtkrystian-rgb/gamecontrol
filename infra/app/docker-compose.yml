@@ -1,0 +1,25 @@
+# Podgląd aplikacji na VPS (DEMO_MODE, bez prawdziwych płatności). Sekrety w pliku .env obok tego pliku.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment: { POSTGRES_USER: gamecontrol, POSTGRES_PASSWORD: "${APP_DB_PASSWORD}", POSTGRES_DB: gamecontrol }
+    volumes: ["appdb:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U gamecontrol"], interval: 5s, retries: 10 }
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+  app:
+    build: { context: ../.., dockerfile: infra/app/Dockerfile }
+    restart: unless-stopped
+    depends_on: { postgres: { condition: service_healthy } }
+    ports: ["80:3000"]
+    environment:
+      DATABASE_URL: "postgresql://gamecontrol:${APP_DB_PASSWORD}@postgres:5432/gamecontrol?schema=public"
+      REDIS_URL: "redis://redis:6379"
+      APP_URL: "${APP_URL}"
+      DEMO_MODE: "true"
+      CRON_SECRET: "${CRON_SECRET}"
+      SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD}"
+      SEED_DEMO_PASSWORD: "${SEED_DEMO_PASSWORD}"
+volumes: { appdb: {} }
