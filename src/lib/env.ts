@@ -6,5 +6,7 @@ export const env = {
   get stripeWebhookSecret() { return process.env.STRIPE_WEBHOOK_SECRET ?? ""; },
   get pteroUrl() { return process.env.PTERODACTYL_URL ?? ""; },
   get pteroClientKey() { return process.env.PTERODACTYL_CLIENT_API_KEY ?? ""; },
+  get stripeSecretKey() { return process.env.STRIPE_SECRET_KEY ?? ""; },
+  get stripeApiBase() { return process.env.STRIPE_API_BASE ?? "https://api.stripe.com"; },
   get pteroKey() { return process.env.PTERODACTYL_APP_API_KEY ?? ""; },
 };

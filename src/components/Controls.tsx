@@ -105,3 +105,11 @@ export function SettingsForm({ name }: { name: string }) {
     </form>
   );
 }
+
+export function CheckoutButton({ orderId }: { orderId: string }) {
+  const [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  return <span className="inline-flex flex-col"><button className="btn-primary" disabled={busy} onClick={async () => {
+    setBusy(true); setErr("");
+    try { const r = await api<{ url: string }>(`/api/orders/${orderId}/checkout`); window.location.href = r.url; } catch (e) { setErr((e as Error).message); setBusy(false); }
+  }}>{busy ? "…" : "Zapłać kartą (Stripe)"}</button>{err && <span role="alert" className="mt-1 text-xs text-red-300">{err}</span>}</span>;
+}

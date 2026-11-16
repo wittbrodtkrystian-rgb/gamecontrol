@@ -18,7 +18,9 @@ export async function settlePayment(args: { orderId: string; provider: PaymentPr
     if (args.amount !== undefined && args.amount !== order.totalAmount) throw new ApiError(409, "AMOUNT_MISMATCH", "Kwota płatności nie zgadza się z zamówieniem");
     if (await tx.payment.findUnique({ where: { providerEventId: args.eventId } })) return { order, duplicate: true };
     if (order.status !== "PENDING_PAYMENT") return { order, duplicate: true };
-    await tx.payment.create({ data: { orderId: order.id, provider: args.provider, status: "SUCCEEDED", amount: order.totalAmount, currency: order.currency, providerRef: args.providerRef, providerEventId: args.eventId } });
+    const pending = await tx.payment.findFirst({ where: { providerRef: args.providerRef, orderId: order.id, status: "PENDING" } });
+    if (pending) await tx.payment.update({ where: { id: pending.id }, data: { status: "SUCCEEDED", providerEventId: args.eventId } });
+    else await tx.payment.create({ data: { orderId: order.id, provider: args.provider, status: "SUCCEEDED", amount: order.totalAmount, currency: order.currency, providerRef: args.providerRef, providerEventId: args.eventId } });
     await tx.order.update({ where: { id: order.id }, data: { status: "PROVISIONING" } });
     const end = new Date(); end.setMonth(end.getMonth() + 1);
     for (const it of order.items) {
@@ -62,4 +64,27 @@ export async function handlePaymentWebhook(rawBody: string, signature: string | 
   const o = ev.data.object;
   if (!o.client_reference_id) throw new ApiError(400, "NO_REFERENCE", "Brak identyfikatora zamówienia");
   return settlePayment({ orderId: o.client_reference_id, provider: "STRIPE", providerRef: o.id, eventId: ev.id, amount: o.amount_total });
+}
+
+/**
+ * Tworzy sesję Stripe Checkout dla własnego, nieopłaconego zamówienia (REST, bez SDK).
+ * Kwoty i opis pochodzą z bazy. Wymaga STRIPE_SECRET_KEY; zalecany klucz testowy sk_test_….
+ * Zamówienie zostaje opłacone dopiero po zweryfikowanym webhooku (checkout.session.completed).
+ */
+export async function createCheckout(userId: string, orderId: string) {
+  if (env.demoMode) throw new ApiError(400, "DEMO_MODE", "W trybie DEMO użyj płatności demo");
+  if (!env.stripeSecretKey) throw new ApiError(503, "PAYMENTS_DISABLED", "Stripe nie jest skonfigurowany");
+  const order = await db.order.findFirst({ where: { id: orderId, userId, status: "PENDING_PAYMENT" }, include: { items: true } });
+  if (!order) throw new ApiError(404, "NOT_FOUND", "Nie znaleziono zamówienia do opłacenia");
+  const f = new URLSearchParams({ mode: "payment", client_reference_id: order.id, success_url: `${env.appUrl}/panel/zamowienia/${order.id}?paid=1`, cancel_url: `${env.appUrl}/panel/zamowienia/${order.id}` });
+  order.items.forEach((it, i) => {
+    f.set(`line_items[${i}][quantity]`, "1"); f.set(`line_items[${i}][price_data][currency]`, order.currency.toLowerCase());
+    f.set(`line_items[${i}][price_data][unit_amount]`, String(it.unitPrice)); f.set(`line_items[${i}][price_data][product_data][name]`, `${it.planName} (1 mies.)`);
+  });
+  const res = await fetch(`${env.stripeApiBase}/v1/checkout/sessions`, { method: "POST", signal: AbortSignal.timeout(15000), headers: { Authorization: `Bearer ${env.stripeSecretKey}`, "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": `checkout-${order.id}` }, body: f });
+  if (!res.ok) throw new ApiError(502, "STRIPE_ERROR", "Nie udało się utworzyć płatności");
+  const j = (await res.json()) as { id: string; url: string };
+  await db.payment.create({ data: { orderId: order.id, provider: "STRIPE", status: "PENDING", amount: order.totalAmount, currency: order.currency, providerRef: j.id } });
+  await audit(userId, "payment.checkout_created", "Order", order.id);
+  return { url: j.url };
 }

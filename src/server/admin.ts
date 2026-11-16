@@ -4,7 +4,7 @@ const plan = {
   priceMonthly: z.number().int().min(0).max(10_000_00), ramMb: z.number().int().min(256).max(262144),
   cpuPercent: z.number().int().min(10).max(6400), diskMb: z.number().int().min(512).max(5_000_000),
   slots: z.number().int().min(1).max(1000), available: z.boolean(), sortOrder: z.number().int().min(0).max(1000),
-  pterodactylEggId: z.number().int().positive().nullable().optional(), dockerImage: z.string().max(200).nullable().optional(),
+  pterodactylEggId: z.number().int().positive().nullable().optional(), pterodactylNestId: z.number().int().positive().nullable().optional(), dockerImage: z.string().max(200).nullable().optional(),
 };
 export const planUpdateSchema = z.object(plan).partial().strict();
 export const planCreateSchema = z.object({ ...plan, gameId: z.string().min(1), slug: z.string().regex(/^[a-z0-9-]{2,40}$/) }).strict();

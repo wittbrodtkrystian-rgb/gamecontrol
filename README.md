@@ -86,7 +86,8 @@ brak 2FA; faktury i zwroty niezaimplementowane.
 | Konsola | ⚠️ symulowana w DEMO |
 | Menedżer plików, instalacja pluginów, zmiana wersji, wipe, mapy Workshop | ❌ Etap 2 (wymaga Pterodactyl/Wings) |
 | Prawdziwy provisioning | ⚠️ adapter napisany wg dokumentacji API, **nietestowany na żywym panelu**; wymaga `PTERODACTYL_URL`, `PTERODACTYL_APP_API_KEY`, węzłów Wings na Linuxie, eggów (`eggId` w pakiecie) |
-| Stripe / abonamenty / odnowienia | ❌ Etap 3; gotowy jest tylko webhook z weryfikacją podpisu (`STRIPE_WEBHOOK_SECRET`) |
+| Stripe Checkout (płatność jednorazowa za pierwszy miesiąc) | ⚠️ napisane i sprawdzone na mocku; wymaga `STRIPE_SECRET_KEY` (użyj `sk_test_…`), `STRIPE_WEBHOOK_SECRET`, `DEMO_MODE=false` i publicznego URL webhooka `/api/webhooks/payments` |
+| Automatyczne odnowienia (subskrypcje Stripe), faktury | ❌ do zrobienia; dziś odnowienie tylko w DEMO |
 | Zgłoszenia, zaawansowany monitoring, raporty | ❌ Etap 4 (tabele w schemacie) |
 
 Wings działa wyłącznie na osobnych serwerach Linux — nie instaluj go na Windows.
