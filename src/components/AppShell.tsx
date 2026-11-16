@@ -12,7 +12,7 @@ export function AppShell({ items, user, title, children }: { items: readonly (re
             <Logo />
             <div className="text-xs uppercase tracking-wide text-slate-500">{title}</div>
             <nav className="-mx-1 flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
-              {items.map(([href, label]) => <Link key={href} href={href} className="whitespace-nowrap rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-panel hover:text-white">{label}</Link>)}
+              {items.map(([href, label]) => <Link key={href} href={href} className="whitespace-nowrap rounded-lg border-l-2 border-transparent px-3 py-2 text-sm text-slate-300 transition hover:border-neon hover:bg-gradient-to-r hover:from-neon/15 hover:to-transparent hover:text-white">{label}</Link>)}
             </nav>
             <div className="mt-auto hidden border-t border-line pt-3 text-xs text-slate-400 md:block"><div className="truncate font-medium text-slate-200">{user.name}</div><div className="truncate">{user.email}</div><div className="mt-1 text-neon">{user.role}</div></div>
             <LogoutButton />

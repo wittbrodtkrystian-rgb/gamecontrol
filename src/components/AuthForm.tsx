@@ -15,8 +15,8 @@ export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: st
     } catch (x) { setErr((x as Error).message); setBusy(false); }
   }
   return (
-    <form onSubmit={submit} className="card mx-auto mt-16 max-w-md space-y-4">
-      <h1 className="text-2xl font-bold">{mode === "login" ? "Zaloguj się" : "Załóż konto"}</h1>
+    <form onSubmit={submit} className="card mx-auto mt-16 max-w-md space-y-4 border-neon/30 p-7 shadow-glow">
+      <h1 className="text-3xl font-black">{mode === "login" ? "Zaloguj się" : "Załóż konto"}</h1>
       {mode === "register" && <div><label className="label" htmlFor="name">Imię / nick</label><input id="name" name="name" className="input" required minLength={2} autoComplete="name" /></div>}
       <div><label className="label" htmlFor="email">E-mail</label><input id="email" name="email" type="email" className="input" required autoComplete="email" /></div>
       <div><label className="label" htmlFor="password">Hasło</label><input id="password" name="password" type="password" className="input" required minLength={mode === "register" ? 10 : 1} autoComplete={mode === "login" ? "current-password" : "new-password"} />
