@@ -5,8 +5,12 @@ import { audit } from "@/lib/audit";
 import { ApiError, notFound } from "@/lib/errors";
 import { notify } from "./notifications";
 
+/** Zmienne egga ustawiane przez klienta (np. SRCDS_TOKEN = GSLT dla CS2). Adapter przepuści tylko te, które egg oznacza jako user_editable. */
+export const envVarsSchema = z.record(z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/, "Niepoprawna nazwa zmiennej"), z.string().trim().max(256))
+  .refine((v) => Object.keys(v).length <= 10, "Maksymalnie 10 zmiennych");
+
 export const createOrderSchema = z.object({
-  items: z.array(z.object({ planId: z.string().min(1), serverName: z.string().trim().min(3).max(40).regex(/^[\p{L}\p{N} ._-]+$/u, "Niedozwolone znaki") })).min(1).max(5),
+  items: z.array(z.object({ planId: z.string().min(1), serverName: z.string().trim().min(3).max(40).regex(/^[\p{L}\p{N} ._-]+$/u, "Niedozwolone znaki"), envVars: envVarsSchema.optional() })).min(1).max(5),
   idempotencyKey: z.string().min(8).max(64).optional(),
 });
 
@@ -24,7 +28,7 @@ export async function createOrder(userId: string, input: z.infer<typeof createOr
     const p = byId.get(it.planId);
     if (!p || !p.available || !p.game.enabled) throw new ApiError(400, "PLAN_UNAVAILABLE", "Wybrany pakiet jest niedostępny");
   }
-  const items = input.items.map((it) => { const p = byId.get(it.planId)!; return { planId: p.id, planName: `${p.game.name} ${p.name}`, serverName: it.serverName, unitPrice: p.priceMonthly }; });
+  const items = input.items.map((it) => { const p = byId.get(it.planId)!; return { planId: p.id, planName: `${p.game.name} ${p.name}`, serverName: it.serverName, unitPrice: p.priceMonthly, config: it.envVars && Object.keys(it.envVars).length ? { envVars: it.envVars } : {} }; });
   const order = await db.order.create({
     data: { number: orderNumber(), userId, totalAmount: items.reduce((s, i) => s + i.unitPrice, 0), idempotencyKey: input.idempotencyKey, items: { create: items } },
     include: { items: true },

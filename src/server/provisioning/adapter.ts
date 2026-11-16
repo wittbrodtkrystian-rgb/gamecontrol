@@ -10,6 +10,8 @@ export interface CreateServerInput {
   eggId: number | null; dockerImage: string | null;
   /** Klucz idempotencji (id pozycji zamówienia) — adapter nie może utworzyć duplikatu. */
   idempotencyKey: string;
+  /** Zmienne egga wybrane przez klienta przy zamówieniu (np. token GSLT); adapter filtruje je do user_editable. */
+  envVars?: Record<string, string>;
 }
 export class ProvisioningError extends Error {
   constructor(message: string, public retryable = true) { super(message); }

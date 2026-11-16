@@ -6,6 +6,10 @@ import { ProvisioningError } from "./adapter";
 
 const BACKOFF_MIN = [1, 5, 15, 60, 180];
 
+/** Domyślne porty gier: Minecraft 25565, CS2 27015, Rust 28015 (zakresy, z których wybieramy wolną alokację w pierwszej kolejności). */
+const PREFERRED_PORTS: [string, [number, number]][] = [["minecraft", [25565, 25599]], ["cs2", [27015, 27099]], ["rust", [28015, 28099]]];
+export const preferredPorts = (slug: string) => PREFERRED_PORTS.find(([k]) => slug.toLowerCase().includes(k))?.[1] ?? null;
+
 /** Wybiera węzeł z wolnym RAM/dyskiem/CPU i wolną alokacją; zwraca null, gdy brak zasobów. */
 export async function pickNode(need: { ramMb: number; diskMb: number; cpuPercent: number }, demoOnly: boolean) {
   const nodes = await db.node.findMany({ where: { enabled: true, maintenance: false, ...(demoOnly ? { isDemo: true } : { isDemo: false }) }, orderBy: { name: "asc" } });
@@ -44,7 +48,10 @@ export async function processJob(jobId: string): Promise<string> {
     const node = await db.node.findUniqueOrThrow({ where: { id: nodeId } });
     // Rezerwacja serwera + alokacji w jednej transakcji (unikalność Allocation.serverId chroni przed wyścigiem)
     const server = item.server ?? await db.$transaction(async (tx) => {
-      const alloc = await tx.allocation.findFirst({ where: { nodeId, serverId: null }, orderBy: { port: "asc" } });
+      // Preferowany zakres portów gry (np. CS2 = 27015+); gdy zajęty, bierzemy dowolną wolną alokację węzła.
+      const range = preferredPorts(plan.game.slug);
+      const alloc = (range && await tx.allocation.findFirst({ where: { nodeId, serverId: null, port: { gte: range[0], lte: range[1] } }, orderBy: { port: "asc" } }))
+        || await tx.allocation.findFirst({ where: { nodeId, serverId: null }, orderBy: { port: "asc" } });
       if (!alloc) throw new ProvisioningError("Brak wolnej alokacji", true);
       const sub = await tx.subscription.findUnique({ where: { orderItemId: item.id } });
       const s = await tx.server.create({ data: {
@@ -60,6 +67,7 @@ export async function processJob(jobId: string): Promise<string> {
       name: item.serverName, ownerEmail: order.user.email, ownerName: order.user.name, gameSlug: plan.game.slug, ramMb: plan.ramMb, cpuPercent: plan.cpuPercent, diskMb: plan.diskMb,
       node: { id: node.id, pterodactylNodeId: node.pterodactylNodeId }, allocation: { ip: alloc.ip, port: alloc.port, externalId: alloc.pterodactylId }, nestId: plan.pterodactylNestId,
       eggId: plan.pterodactylEggId, dockerImage: plan.dockerImage, idempotencyKey: item.id,
+      envVars: (item.config as { envVars?: Record<string, string> } | null)?.envVars,
     });
     await db.$transaction([
       db.server.update({ where: { id: server.id }, data: { status: "OFFLINE", externalId: ext.externalId, externalUuid: ext.externalUuid } }),

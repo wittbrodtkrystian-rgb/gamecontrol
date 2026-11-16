@@ -17,7 +17,7 @@ const plans = [
   ["minecraft", "mc-starter", "Starter", 1900, 2048, 100, 10240, 20],
   ["minecraft", "mc-standard", "Standard", 3900, 4096, 200, 20480, 50],
   ["minecraft", "mc-premium", "Premium", 6900, 8192, 300, 40960, 100],
-  ["cs2", "cs2-basic", "Basic", 2900, 4096, 200, 51200, 12],
+  ["cs2", "cs2-basic", "Basic", 2900, 4096, 200, 76800, 12], // CS2 po instalacji zajmuje ok. 69 GB; przy 50 GB Wings odmawia startu ("not enough disk space")
   ["cs2", "cs2-pro", "Pro", 5900, 8192, 400, 76800, 32],
   ["rust", "rust-survival", "Survival", 9900, 12288, 400, 40960, 100],
 ] as const;

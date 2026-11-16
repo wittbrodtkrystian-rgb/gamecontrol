@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { env } from "@/lib/env";
 import { ProvisioningError, type CreateServerInput, type GameServerAdapter, type PowerAction } from "./adapter";
 import type { ServerStatus } from "@prisma/client";
@@ -51,7 +51,18 @@ export class PterodactylAdapter implements GameServerAdapter {
     const owner = await this.ensureUser(i.ownerEmail, i.ownerName);
     const egg = (await app("GET", `/nests/${i.nestId}/eggs/${i.eggId}?include=variables`)).attributes;
     const environment: Record<string, string | number> = {};
-    for (const v of egg.relationships?.variables?.data ?? []) environment[v.attributes.env_variable] = v.attributes.default_value ?? "";
+    for (const v of egg.relationships?.variables?.data ?? []) {
+      const a = v.attributes;
+      // Klient może nadpisać wyłącznie zmienne, które egg oznacza jako user_editable (np. SRCDS_TOKEN); resztę ustala egg/admin.
+      const custom = a.user_editable === true ? i.envVars?.[a.env_variable] : undefined;
+      let value: string | number = custom !== undefined && custom !== "" ? custom : a.default_value ?? "";
+      // Panel waliduje reguły egga przy POST /servers: pusta wymagana zmienna = HTTP 422 (np. CS2: RCON_PASSWORD, STEAM_GSLT).
+      if (value === "" && /\brequired\b/.test(a.rules ?? "") && !/\bnullable\b/.test(a.rules ?? "")) {
+        if (a.env_variable === "RCON_PASSWORD") value = randomBytes(12).toString("hex"); // alpha_dash, 24 znaki; hasło jest w panelu/Client API
+        else throw new ProvisioningError(`Wymagana zmienna egga ${a.env_variable} (${a.name ?? ""}) nie została podana w zamówieniu`, false);
+      }
+      environment[a.env_variable] = value;
+    }
     const r = await app("POST", "/servers", {
       name: i.name, user: owner, egg: i.eggId, docker_image: i.dockerImage ?? egg.docker_image, startup: egg.startup,
       environment, external_id: i.idempotencyKey,

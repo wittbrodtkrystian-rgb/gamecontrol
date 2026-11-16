@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { app } from "./provisioning/pterodactyl";
 import { audit } from "@/lib/audit";
+import { env } from "@/lib/env";
 
 type PNode = { attributes: { id: number; name: string; fqdn: string; memory: number; memory_overallocate: number; disk: number; disk_overallocate: number; maintenance_mode: boolean } };
 type PAlloc = { attributes: { id: number; ip: string; port: number } };
@@ -13,8 +14,9 @@ export async function syncNodes(actorId: string | null) {
     const a = n.attributes;
     const node = await db.node.upsert({
       where: { pterodactylNodeId: a.id },
-      update: { fqdn: a.fqdn, ramTotalMb: a.memory, diskTotalMb: a.disk },
-      create: { name: a.name, fqdn: a.fqdn, location: "Pterodactyl", ramTotalMb: a.memory, diskTotalMb: a.disk, cpuTotal: 400, pterodactylNodeId: a.id, maintenance: a.maintenance_mode },
+      // cpuTotal nadpisujemy tylko, gdy admin jawnie ustawił NODE_CPU_PERCENT (inaczej zostaje wartość z bazy)
+      update: { fqdn: a.fqdn, ramTotalMb: a.memory, diskTotalMb: a.disk, ...(env.nodeCpuConfigured ? { cpuTotal: env.nodeCpuPercent } : {}) },
+      create: { name: a.name, fqdn: a.fqdn, location: "Pterodactyl", ramTotalMb: a.memory, diskTotalMb: a.disk, cpuTotal: env.nodeCpuPercent, pterodactylNodeId: a.id, maintenance: a.maintenance_mode },
     });
     for (let page = 1; ; page++) {
       const r = await app("GET", `/nodes/${a.id}/allocations?per_page=100&page=${page}`);
