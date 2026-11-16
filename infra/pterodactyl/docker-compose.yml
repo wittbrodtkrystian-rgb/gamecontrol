@@ -1,4 +1,4 @@
-# LOKALNE środowisko testowe Pterodactyl Panel (bez Wings). Tylko do developmentu — nie na produkcję.
+﻿# LOKALNE Ĺ›rodowisko testowe Pterodactyl Panel (bez Wings). Tylko do developmentu â€” nie na produkcjÄ™.
 # Panel: http://localhost:8080
 services:
   database:
@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
     depends_on: [database, cache]
     ports: ["8080:80"]
-    volumes: ["ptero_var:/app/var/", "ptero_nginx:/etc/nginx/http.d/", "ptero_logs:/app/storage/logs"]
+    volumes: ["ptero_var:/app/var/", "ptero_nginx:/etc/nginx/http.d/", "ptero_logs:/app/storage/logs", "./mariadb-client-nossl.cnf:/etc/my.cnf.d/zz-nossl.cnf:ro"]
     environment:
       APP_URL: "http://localhost:8080"
       APP_TIMEZONE: "Europe/Warsaw"
