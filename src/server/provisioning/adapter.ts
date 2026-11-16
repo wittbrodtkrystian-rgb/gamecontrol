@@ -40,6 +40,10 @@ export interface GameServerAdapter {
   power(server: { externalId: string | null; externalUuid: string | null; eulaAccepted?: boolean }, action: PowerAction): Promise<ServerStatus>;
   /** Odczyt stanu i zasobów (Client API). null = brak danych. */
   resources?(server: { externalUuid: string | null }): Promise<{ state: ServerStatus; cpu: number; ramMb: number; diskMb: number; netInKb: number; netOutKb: number } | null>;
+  /** Zmiana eggu/zmiennych i ponowna instalacja serwera (zmiana silnika/wersji). Brak = niedostępne (DEMO). */
+  reinstall?(server: { externalId: string | null }, input: { nestId: number; eggId: number; dockerImage: string | null; envVars: Record<string, string> }): Promise<void>;
+  /** Czy serwer jest w trakcie instalacji (Application API). */
+  installing?(server: { externalId: string | null }): Promise<boolean>;
   suspend(server: { externalId: string | null }, suspended: boolean): Promise<void>;
   deleteServer(server: { externalId: string | null }): Promise<void>;
 }

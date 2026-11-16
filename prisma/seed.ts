@@ -6,7 +6,10 @@ const db = new PrismaClient();
 
 const games = [
   { slug: "minecraft", name: "Minecraft Java", sortOrder: 1, description: "Paper, Vanilla i Purpur. Zmiana wersji i pluginy.",
-    features: { engines: ["Paper", "Vanilla", "Purpur"], plugins: true, versionSwitch: true } },
+    // engineEggs: silniki wybierane przy zamówieniu = osobne egg-i. ID z domyślnego panelu 1.15 (Paper 3, Vanilla 5 w nest 1); Purpur/Fabric trzeba
+    // zaimportować i dopisać ich ID (Admin → Nests). Sprawdź ID w swoim panelu!
+    features: { engines: ["Paper", "Vanilla", "Purpur", "Fabric"], plugins: true, versionSwitch: true,
+      engineEggs: [{ key: "paper", label: "Paper", nestId: 1, eggId: 3, versionVar: "MINECRAFT_VERSION" }, { key: "vanilla", label: "Vanilla", nestId: 1, eggId: 5, versionVar: "VANILLA_VERSION" }] } },
   { slug: "cs2", name: "Counter-Strike 2", sortOrder: 2, description: "Serwery publiczne, Retake, Deathmatch, Arena 1v1 i mapy z Workshopu.",
     features: { modes: ["Publiczny", "Retake", "Deathmatch", "Arena 1v1"], workshopMaps: true, addons: "CounterStrikeSharp/Metamod — ręczna instalacja" } },
   { slug: "rust", name: "Rust", sortOrder: 3, description: "Vanilla i modded (uMod/Oxide), zarządzanie wipe.",
@@ -34,7 +37,7 @@ async function main() {
   for (const g of games) await db.game.upsert({ where: { slug: g.slug }, update: {}, create: g });
   for (const [gs, slug, name, price, ram, cpu, disk, slots] of plans) {
     const game = await db.game.findUniqueOrThrow({ where: { slug: gs } });
-    await db.hostingPlan.upsert({ where: { slug }, update: {}, create: { gameId: game.id, slug, name, priceMonthly: price, ramMb: ram, cpuPercent: cpu, diskMb: disk, slots, sortOrder: price, ...(gs === "minecraft" ? { pterodactylNestId: 1, pterodactylEggId: 5 } : gs === "rust" ? { pterodactylNestId: 4, pterodactylEggId: 14 } : {}) } });
+    await db.hostingPlan.upsert({ where: { slug }, update: {}, create: { gameId: game.id, slug, name, priceMonthly: price, ramMb: ram, cpuPercent: cpu, diskMb: disk, slots, sortOrder: price, ...(gs === "minecraft" ? { pterodactylNestId: 1, pterodactylEggId: 3 } : gs === "rust" ? { pterodactylNestId: 4, pterodactylEggId: 14 } : {}) } });
   }
   const node = await db.node.upsert({ where: { name: "demo-node-1" }, update: {}, create: { name: "demo-node-1", fqdn: "demo.invalid", location: "DEMO (symulacja)", ramTotalMb: 65536, diskTotalMb: 1_000_000, cpuTotal: 1600, isDemo: true } });
   for (let i = 0; i < 20; i++) await db.allocation.upsert({ where: { nodeId_ip_port: { nodeId: node.id, ip: "203.0.113.10", port: 25565 + i } }, update: {}, create: { nodeId: node.id, ip: "203.0.113.10", port: 25565 + i } });

@@ -17,6 +17,11 @@ export async function getServerFor(actor: Actor, id: string) {
     include: { plan: { include: { game: true } }, node: true, allocation: true, subscription: true, orderItem: { select: { config: true } } },
   });
   if (!s) throw notFound();
+  // Po reinstalacji serwer ma status INSTALLING; gdy panel zgłasza koniec instalacji, wraca do OFFLINE
+  if (s.status === "INSTALLING" && !s.isDemo && s.externalId) {
+    const still = await getAdapter().installing?.(s).catch(() => true);
+    if (still === false) { await db.server.update({ where: { id: s.id }, data: { status: "OFFLINE" } }); return { ...s, status: "OFFLINE" as const }; }
+  }
   return s;
 }
 

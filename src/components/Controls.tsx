@@ -67,23 +67,30 @@ export function Metrics({ serverId }: { serverId: string }) {
   );
 }
 
-export function OrderForm({ plans, initial }: { plans: { id: string; label: string; price: string }[]; initial?: string }) {
+export function OrderForm({ plans, initial }: { plans: { id: string; label: string; price: string; engines?: { key: string; label: string }[] }[]; initial?: string }) {
   const [planId, setPlanId] = useState(initial && plans.some((p) => p.id === initial) ? initial : plans[0]?.id ?? "");
   const [name, setName] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
   const [gslt, setGslt] = useState(""), [eula, setEula] = useState(false), [lic, setLic] = useState("");
-  const planLabel = plans.find((p) => p.id === planId)?.label ?? "";
+  const [engine, setEngine] = useState(""), [version, setVersion] = useState("latest");
+  const selected = plans.find((p) => p.id === planId);
+  const engines = selected?.engines ?? [];
+  const engineKey = engines.some((e) => e.key === engine) ? engine : engines[0]?.key ?? "";
+  const planLabel = selected?.label ?? "";
   const isMc = /Minecraft/i.test(planLabel), isCs = /Counter-Strike/i.test(planLabel), isFivem = /FiveM/i.test(planLabel);
   const envVars = { ...(isCs && gslt.trim() ? { STEAM_GSLT: gslt.trim() } : {}), ...(isFivem && lic.trim() ? { FIVEM_LICENSE: lic.trim() } : {}) };
   const [key] = useState(() => crypto.randomUUID());
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setErr("");
-    try { const o = await api<{ id: string }>("/api/orders", "POST", { items: [{ planId, serverName: name, ...(isMc ? { acceptEula: eula } : {}), ...(Object.keys(envVars).length ? { envVars } : {}) }], idempotencyKey: key }); window.location.href = `/panel/zamowienia/${o.id}`; }
+    try { const o = await api<{ id: string }>("/api/orders", "POST", { items: [{ planId, serverName: name, ...(engines.length ? { engine: engineKey, version: version.trim() || "latest" } : {}), ...(isMc ? { acceptEula: eula } : {}), ...(Object.keys(envVars).length ? { envVars } : {}) }], idempotencyKey: key }); window.location.href = `/panel/zamowienia/${o.id}`; }
     catch (x) { setErr((x as Error).message); setBusy(false); }
   }
   return (
     <form onSubmit={submit} className="card max-w-xl space-y-4">
       <div><label className="label" htmlFor="plan">Pakiet</label><select id="plan" className="input" value={planId} onChange={(e) => setPlanId(e.target.value)}>{plans.map((p) => <option key={p.id} value={p.id}>{p.label} — {p.price}/mies.</option>)}</select></div>
       <div><label className="label" htmlFor="sname">Nazwa serwera</label><input id="sname" className="input" value={name} onChange={(e) => setName(e.target.value)} required minLength={3} maxLength={40} placeholder="np. Moje Survival" /></div>
+      {engines.length > 0 && <div className="grid gap-4 sm:grid-cols-2">
+        <div><label className="label" htmlFor="engine">Silnik serwera</label><select id="engine" className="input" value={engineKey} onChange={(e) => setEngine(e.target.value)}>{engines.map((e) => <option key={e.key} value={e.key}>{e.label}</option>)}</select></div>
+        <div><label className="label" htmlFor="version">Wersja gry</label><input id="version" className="input" value={version} onChange={(e) => setVersion(e.target.value)} placeholder="latest lub np. 1.21.4" maxLength={12} /><p className="mt-1 text-xs text-slate-500">„latest” to najnowsza wersja.</p></div></div>}
       {isMc && <label className="flex items-start gap-2 text-sm text-slate-300"><input type="checkbox" className="mt-1" checked={eula} onChange={(e) => setEula(e.target.checked)} required /><span>Akceptuję <a className="text-neon underline" href="https://aka.ms/MinecraftEULA" target="_blank" rel="noopener noreferrer">umowę EULA Minecrafta</a>. Jest wymagana, żeby serwer mógł wystartować.</span></label>}
       {isFivem && <div><label className="label" htmlFor="lic">Klucz licencyjny FiveM (Cfx.re)</label><input id="lic" className="input" value={lic} onChange={(e) => setLic(e.target.value)} maxLength={33} required autoComplete="off" placeholder="Klucz z portal.cfx.re" /><p className="mt-1 text-xs text-slate-500">Każdy serwer wymaga własnego klucza. Wygenerujesz go bezpłatnie na portal.cfx.re.</p></div>}
       {isCs && <div><label className="label" htmlFor="gslt">Token Steam GSLT (Counter-Strike 2)</label><input id="gslt" className="input" value={gslt} onChange={(e) => setGslt(e.target.value)} maxLength={32} autoComplete="off" placeholder="32 znaki z steamcommunity.com/dev/managegameservers" /></div>}

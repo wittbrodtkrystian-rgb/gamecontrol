@@ -38,7 +38,8 @@ Sprawdzone: synchronizacja węzłów i alokacji, tworzenie użytkownika w panelu
 (przeszło walidację API; zatrzymało się dopiero na braku połączenia z Wings -> 504, ponawialny). **Niesprawdzone:** faktyczne utworzenie
 serwera, zasilanie i metryki — wymagają działającego Wings.
 
-ID z domyślnie zasianego panelu: Minecraft Paper = nest 1 / egg 5, Vanilla = 1/4, Rust = nest 4 / egg 14.
+ID z domyślnie zasianego panelu 1.15.2 (sprawdzone na żywo): nest 1 Minecraft = Bungeecord 1, Sponge 2, **Paper 3**, Forge 4, **Vanilla 5**; Rust = nest 4 / egg 14.
+(Wcześniejsza wersja tego pliku podawała błędnie Paper = 5 / Vanilla = 4.) Silniki Purpur i Fabric trzeba zaimportować (eggs.pterodactyl.io), a ich ID wpisać w `Game.features.engineEggs`.
 **Counter-Strike 2 nie ma domyślnego egga** (jest tylko CS:GO) — trzeba zaimportować własny egg CS2 w panelu (Admin → Nests → Import Egg).
 
 ## Co jest już w kodzie (sprawdzone tylko na MOCKU API, nie na żywym panelu)

@@ -7,6 +7,8 @@ import { Badge, PageTitle, Table, dt } from "@/components/ui";
 import { ActionButton, Console, Metrics, PowerControls } from "@/components/Controls";
 import { formatMb } from "@/lib/money";
 import { FileManager } from "@/components/FileManager";
+import { EngineSettings } from "@/components/EngineSettings";
+import { engineDefs } from "@/server/engines";
 export const dynamic = "force-dynamic";
 
 const tabs = [["przeglad", "Przegląd"], ["konsola", "Konsola"], ["pliki", "Pliki"], ["kopie", "Kopie zapasowe"], ["statystyki", "Statystyki"]] as const;
@@ -16,6 +18,7 @@ export default async function ServerPage({ params, searchParams }: { params: Pro
   if (!s) notFound();
   const backups = tab === "kopie" ? await db.backup.findMany({ where: { serverId: id }, orderBy: { createdAt: "desc" } }) : [];
   const expired = s.subscription && s.subscription.status !== "ACTIVE";
+  const engines = engineDefs(s.plan.game.features); const cfg = (s.orderItem?.config ?? {}) as { engine?: string; version?: string };
   return (
     <>
       <PageTitle sub={`${s.plan.game.name} · ${s.plan.name}${s.isDemo ? " · serwer DEMO" : ""}`} action={<Badge s={s.status} />}>{s.name}</PageTitle>
@@ -28,7 +31,9 @@ export default async function ServerPage({ params, searchParams }: { params: Pro
           <div className="card text-sm space-y-1"><div className="label">Zasoby</div><div>RAM {formatMb(s.ramMb)} · CPU {s.cpuPercent}% · Dysk {formatMb(s.diskMb)} · {s.slots} slotów</div></div>
           <div className="card text-sm space-y-1"><div className="label">Abonament</div><div>{s.subscription ? <>ważny do <b>{s.subscription.currentPeriodEnd.toLocaleDateString("pl-PL")}</b> <Badge s={s.subscription.status} /></> : "—"}</div>
             {s.subscription && <ActionButton url={`/api/subscriptions/${s.subscription.id}/renew`} label="Przedłuż o miesiąc (DEMO)" />}</div>
-        </div></div>}
+        </div>
+        {engines.length > 0 && !s.isDemo && <EngineSettings serverId={s.id} engines={engines.map((e) => ({ key: e.key, label: e.label }))} current={{ engine: cfg.engine, version: cfg.version }}
+          blockedReason={expired ? "Usługa wygasła — odnów abonament." : s.status === "INSTALLING" ? "Trwa instalacja serwera." : s.status !== "OFFLINE" ? "Zatrzymaj serwer, aby zmienić silnik lub wersję." : undefined} />}</div>}
       {tab === "konsola" && <Console serverId={s.id} running={s.status === "RUNNING"} demo={s.isDemo} />}
       {tab === "pliki" && (s.isDemo ? <div className="card text-sm text-slate-400">Menedżer plików działa tylko na prawdziwych serwerach (ten serwer jest w trybie DEMO).</div>
         : !["OFFLINE", "RUNNING", "STARTING", "STOPPING"].includes(s.status) ? <div className="card text-sm text-slate-400">Serwer jest jeszcze w trakcie instalacji. Pliki będą dostępne po jej zakończeniu.</div>

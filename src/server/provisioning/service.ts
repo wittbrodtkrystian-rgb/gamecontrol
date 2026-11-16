@@ -3,6 +3,7 @@ import { audit } from "@/lib/audit";
 import { notify, notifyStaff } from "../notifications";
 import { getAdapter } from "./index";
 import { ProvisioningError } from "./adapter";
+import { engineDefs } from "../engines";
 
 const BACKOFF_MIN = [1, 5, 15, 60, 180];
 
@@ -75,14 +76,17 @@ export async function processJob(jobId: string): Promise<string> {
     });
     const alloc = await db.allocation.findUniqueOrThrow({ where: { serverId: server.id } });
     const extras = await db.allocation.findMany({ where: { extraForServerId: server.id }, orderBy: { port: "asc" } });
+    // Silnik i wersja wybrane przy zamówieniu (osobny egg); gdy brak definicji, zostaje egg z pakietu
+    const cfg = (item.config ?? {}) as { envVars?: Record<string, string>; engine?: string; version?: string };
+    const eng = engineDefs(plan.game.features).find((d) => d.key === cfg.engine);
     const ext = await adapter.createServer({
       name: item.serverName, ownerEmail: order.user.email, ownerName: order.user.name, gameSlug: plan.game.slug, ramMb: plan.ramMb, cpuPercent: plan.cpuPercent, diskMb: plan.diskMb,
-      node: { id: node.id, pterodactylNodeId: node.pterodactylNodeId }, allocation: { ip: alloc.ip, port: alloc.port, externalId: alloc.pterodactylId }, nestId: plan.pterodactylNestId,
-      eggId: plan.pterodactylEggId, dockerImage: plan.dockerImage, idempotencyKey: item.id,
+      node: { id: node.id, pterodactylNodeId: node.pterodactylNodeId }, allocation: { ip: alloc.ip, port: alloc.port, externalId: alloc.pterodactylId }, nestId: eng?.nestId ?? plan.pterodactylNestId,
+      eggId: eng?.eggId ?? plan.pterodactylEggId, dockerImage: plan.dockerImage, idempotencyKey: item.id,
       // Nazwa serwera i limit graczy pochodzą z zamówienia/pakietu; MAX_PLAYERS na końcu, żeby klient nie przekroczył slotów z pakietu.
       extraAllocations: extras.map((e) => ({ ip: e.ip, port: e.port, externalId: e.pterodactylId })),
       systemVars: extras[0] ? { TXHOST_TXA_PORT: String(extras[0].port) } : undefined, // txAdmin nasłuchuje na przydzielonym porcie
-      envVars: { SERVER_HOSTNAME: item.serverName, SERVER_NAME: item.serverName, ...((item.config as { envVars?: Record<string, string> } | null)?.envVars ?? {}), MAX_PLAYERS: String(plan.slots) },
+      envVars: { SERVER_HOSTNAME: item.serverName, SERVER_NAME: item.serverName, ...(cfg.envVars ?? {}), ...(eng && cfg.version ? { [eng.versionVar]: cfg.version } : {}), MAX_PLAYERS: String(plan.slots) },
     });
     await db.$transaction([
       db.server.update({ where: { id: server.id }, data: { status: "OFFLINE", externalId: ext.externalId, externalUuid: ext.externalUuid } }),

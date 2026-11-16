@@ -129,6 +129,19 @@ export class PterodactylAdapter implements GameServerAdapter {
       netInKb: Math.round((r.network_rx_bytes ?? 0) / 1024), netOutKb: Math.round((r.network_tx_bytes ?? 0) / 1024) };
   }
 
+  async reinstall(s: { externalId: string | null }, i: { nestId: number; eggId: number; dockerImage: string | null; envVars: Record<string, string> }) {
+    if (!s.externalId) throw new ProvisioningError("Serwer nie ma id Pterodactyl", false);
+    const egg = (await app("GET", `/nests/${i.nestId}/eggs/${i.eggId}?include=variables`)).attributes;
+    const environment: Record<string, string | number> = {};
+    for (const v of egg.relationships?.variables?.data ?? []) environment[v.attributes.env_variable] = i.envVars[v.attributes.env_variable] ?? v.attributes.default_value ?? "";
+    await app("PATCH", `/servers/${s.externalId}/startup`, { startup: egg.startup, environment, egg: i.eggId, image: i.dockerImage ?? egg.docker_image, skip_scripts: false });
+    await app("POST", `/servers/${s.externalId}/reinstall`);
+  }
+  async installing(s: { externalId: string | null }) {
+    if (!s.externalId) return false;
+    return (await app("GET", `/servers/${s.externalId}`)).attributes?.status === "installing";
+  }
+
   async suspend(s: { externalId: string | null }, suspended: boolean) {
     if (s.externalId) await app("POST", `/servers/${s.externalId}/${suspended ? "suspend" : "unsuspend"}`);
   }
