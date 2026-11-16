@@ -28,7 +28,7 @@ async function main() {
   for (const g of games) await db.game.upsert({ where: { slug: g.slug }, update: {}, create: g });
   for (const [gs, slug, name, price, ram, cpu, disk, slots] of plans) {
     const game = await db.game.findUniqueOrThrow({ where: { slug: gs } });
-    await db.hostingPlan.upsert({ where: { slug }, update: {}, create: { gameId: game.id, slug, name, priceMonthly: price, ramMb: ram, cpuPercent: cpu, diskMb: disk, slots, sortOrder: price } });
+    await db.hostingPlan.upsert({ where: { slug }, update: {}, create: { gameId: game.id, slug, name, priceMonthly: price, ramMb: ram, cpuPercent: cpu, diskMb: disk, slots, sortOrder: price, ...(gs === "minecraft" ? { pterodactylNestId: 1, pterodactylEggId: 5 } : gs === "rust" ? { pterodactylNestId: 4, pterodactylEggId: 14 } : {}) } });
   }
   const node = await db.node.upsert({ where: { name: "demo-node-1" }, update: {}, create: { name: "demo-node-1", fqdn: "demo.invalid", location: "DEMO (symulacja)", ramTotalMb: 65536, diskTotalMb: 1_000_000, cpuTotal: 1600, isDemo: true } });
   for (let i = 0; i < 20; i++) await db.allocation.upsert({ where: { nodeId_ip_port: { nodeId: node.id, ip: "203.0.113.10", port: 25565 + i } }, update: {}, create: { nodeId: node.id, ip: "203.0.113.10", port: 25565 + i } });

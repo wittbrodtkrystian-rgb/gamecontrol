@@ -33,6 +33,14 @@ PTERODACTYL_URL="http://localhost:8080"
 PTERODACTYL_APP_API_KEY="ptla_..."
 ```
 
+## Weryfikacja na prawdziwym panelu (Pterodactyl 1.15.2, uruchomionym natywnie, bez Wings)
+Sprawdzone: synchronizacja węzłów i alokacji, tworzenie użytkownika w panelu, pobranie egga i wysłanie żądania `POST /servers`
+(przeszło walidację API; zatrzymało się dopiero na braku połączenia z Wings -> 504, ponawialny). **Niesprawdzone:** faktyczne utworzenie
+serwera, zasilanie i metryki — wymagają działającego Wings.
+
+ID z domyślnie zasianego panelu: Minecraft Paper = nest 1 / egg 5, Vanilla = 1/4, Rust = nest 4 / egg 14.
+**Counter-Strike 2 nie ma domyślnego egga** (jest tylko CS:GO) — trzeba zaimportować własny egg CS2 w panelu (Admin → Nests → Import Egg).
+
 ## Co jest już w kodzie (sprawdzone tylko na MOCKU API, nie na żywym panelu)
 - Synchronizacja węzłów i alokacji: `POST /api/admin/nodes/sync` (tylko ADMIN, zalogowany w przeglądarce).
 - Tworzenie serwera: użytkownik w Pterodactyl, pobranie egga (startup, zmienne), alokacja, idempotencja po `external_id`.
