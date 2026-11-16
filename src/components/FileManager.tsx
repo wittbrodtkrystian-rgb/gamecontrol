@@ -54,20 +54,20 @@ export function FileManager({ serverId, canWrite }: { serverId: string; canWrite
       </div>
       {msg && <p className="text-sm text-emerald-300">{msg}</p>}{err && <p role="alert" className="text-sm text-red-300">{err}</p>}
       {busy ? <p className="text-sm text-slate-400">Ładowanie…</p> : (
-        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="th">Nazwa</th><th className="th">Rozmiar</th><th className="th">Zmieniono</th><th className="th" /></tr></thead>
-          <tbody className="divide-y divide-line">
-            {dir !== "/" && <tr><td className="td" colSpan={4}><button className="text-neon hover:underline" onClick={() => load(dir.split("/").slice(0, -1).join("/") || "/")}>.. (wyżej)</button></td></tr>}
-            {entries.length === 0 && <tr><td className="td text-slate-400" colSpan={4}>Pusty katalog.</td></tr>}
-            {entries.map((e) => (
-              <tr key={e.name}>
-                <td className="td"><button className="text-left hover:text-neon" onClick={() => (e.isFile ? openFile(e) : load(join(dir, e.name)))}>{e.isFile ? "📄" : "📁"} {e.name}</button></td>
-                <td className="td text-slate-400">{e.isFile ? fmt(e.size) : "—"}</td>
-                <td className="td text-slate-400">{new Date(e.modifiedAt).toLocaleString("pl-PL")}</td>
-                <td className="td text-right whitespace-nowrap">{canWrite && <>
-                  <button className="btn-ghost mr-1 px-2 py-1 text-xs" onClick={() => { const n = window.prompt("Nowa nazwa", e.name); if (n && n !== e.name) run(() => api(base, "PATCH", { dir, from: e.name, to: n }), "Zmieniono nazwę."); }}>Zmień nazwę</button>
-                  <button className="btn-danger px-2 py-1 text-xs" onClick={() => { if (window.confirm(`Usunąć „${e.name}”? Tej operacji nie można cofnąć.`)) run(() => api(base, "DELETE", { dir, names: [e.name] }), "Usunięto."); }}>Usuń</button></>}</td>
-              </tr>))}
-          </tbody></table></div>)}
+        <ul className="divide-y divide-line text-sm">
+          {dir !== "/" && <li className="py-2"><button className="text-neon hover:underline" onClick={() => load(dir.split("/").slice(0, -1).join("/") || "/")}>.. (wyżej)</button></li>}
+          {entries.length === 0 && <li className="py-3 text-slate-400">Pusty katalog.</li>}
+          {entries.map((e) => (
+            <li key={e.name} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5">
+              <div className="min-w-0 flex-1">
+                <button className="max-w-full break-all text-left hover:text-neon" onClick={() => (e.isFile ? openFile(e) : load(join(dir, e.name)))}>{e.isFile ? "📄" : "📁"} {e.name}</button>
+                <div className="text-xs text-slate-500">{e.isFile ? `${fmt(e.size)} · ` : ""}{new Date(e.modifiedAt).toLocaleString("pl-PL")}</div>
+              </div>
+              {canWrite && <div className="flex shrink-0 gap-1">
+                <button className="btn-ghost px-2 py-1 text-xs" onClick={() => { const n = window.prompt("Nowa nazwa", e.name); if (n && n !== e.name) run(() => api(base, "PATCH", { dir, from: e.name, to: n }), "Zmieniono nazwę."); }}>Zmień nazwę</button>
+                <button className="btn-danger px-2 py-1 text-xs" onClick={() => { if (window.confirm(`Usunąć „${e.name}”? Tej operacji nie można cofnąć.`)) run(() => api(base, "DELETE", { dir, names: [e.name] }), "Usunięto."); }}>Usuń</button></div>}
+            </li>))}
+        </ul>)}
       <p className="text-xs text-slate-500">Edycja dotyczy plików tekstowych do 1 MB (np. server.properties, pliki .cfg, .yml). Większe pliki i wgrywanie wymagają SFTP.</p>
     </div>
   );
